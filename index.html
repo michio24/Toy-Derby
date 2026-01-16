@@ -553,27 +553,27 @@
             {
                 name: "ホワイトウィンド", color: 0xF0F0F0, skill: "Divine Wind", skillDesc: "ラストスパート超加速", icon: "🌪️",
                 check: (p, r) => p > 0.75 && r < 0.02,
-                activate: (h) => h.speed *= 1.8
+                activate: (h) => h.speed *= (1.6 + Math.random() * 0.4)
             },
             {
                 name: "チョコチップ", color: 0x5D4037, skill: "Sugar Rush", skillDesc: "中盤で爆発的な加速", icon: "🍩",
                 check: (p, r) => p > 0.4 && p < 0.6 && r < 0.02,
-                activate: (h) => h.speed *= 1.6
+                activate: (h) => h.speed *= (1.4 + Math.random() * 0.4)
             },
             {
                 name: "ブラックジャック", color: 0x212121, skill: "Shadow Step", skillDesc: "スタミナ減らずに加速", icon: "🌑",
                 check: (p, r) => p > 0.5 && r < 0.01,
-                activate: (h) => h.speed *= 1.4
+                activate: (h) => h.speed *= (1.3 + Math.random() * 0.3)
             },
             {
                 name: "ゴールデンボーイ", color: 0xFFD700, skill: "Gold Aura", skillDesc: "全体的な速度底上げ", icon: "✨",
                 check: (p, r) => p > 0.2 && r < 0.01,
-                activate: (h) => { h.speed *= 1.25; h.skillTimer = 6.0; }
+                activate: (h) => { h.speed *= (1.2 + Math.random() * 0.2); h.skillTimer = 6.0; }
             },
             {
                 name: "シルバーブレット", color: 0xA9A9A9, skill: "Bullet Time", skillDesc: "ゴール直前で一瞬の伸び", icon: "🚅",
                 check: (p, r) => p > 0.85 && r < 0.03,
-                activate: (h) => { h.speed *= 2.5; h.skillTimer = 1.5; }
+                activate: (h) => { h.speed *= (2.0 + Math.random() * 1.0); h.skillTimer = 1.5; }
             }
         ];
 
@@ -834,6 +834,10 @@
 
             reset() {
                 this.currentT = CONFIG.startLineT; this.finished = false; this.speed = 0;
+                // Race variability: reroll stats per race
+                this.baseSpeed = (0.045 + Math.random() * 0.012) * CONFIG.raceSpeedMult;
+                this.maxSpeed = this.baseSpeed * (1.4 + Math.random() * 0.3);
+
                 this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
                 this.mat.emissive.setHex(0x000000); this.aura.visible = false;
                 this.legs.forEach(l => l.rotation.x = 0); this.updatePosition();

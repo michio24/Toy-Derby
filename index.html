@@ -529,6 +529,22 @@
                         this.lastOut = 0;
                     }
                 }
+            },
+
+            speak: function (text) {
+                if (this.isMuted) return;
+                if (!window.speechSynthesis) return;
+
+                // Cancel current speech to speak new commentary immediately
+                window.speechSynthesis.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP';
+                utterance.rate = 1.3; // Exciting pace
+                utterance.pitch = 1.1; // Slightly higher pitch
+                utterance.volume = 1.0;
+
+                window.speechSynthesis.speak(utterance);
             }
         };
 
@@ -541,8 +557,8 @@
         // --- Configuration & Constants ---
         const CONFIG = {
             laneWidth: 3.5,
-            trackRadiusX: 120,
-            trackRadiusZ: 60,
+            trackRadiusX: 180,
+            trackRadiusZ: 90,
             segmentCount: 200,
             finishLineT: 0.0,
             startLineT: 0.0,
@@ -636,7 +652,7 @@
             const grassCanvas = document.createElement('canvas');
             grassCanvas.width = 512; grassCanvas.height = 512;
             const ctx = grassCanvas.getContext('2d');
-            ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, 0, 512, 512); // Green Grass
             for (let i = 0; i < 40000; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
                 ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
@@ -657,7 +673,7 @@
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                 const p1 = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
                 const p2 = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
-                vertices.push(p1.x, 0.05, p1.z, p2.x, 0.05, p2.z);
+                vertices.push(p1.x, 0.2, p1.z, p2.x, 0.2, p2.z); // Lifted to 0.2
                 const v = i / 10;
                 uvs.push(0, v, 1, v);
             });
@@ -671,14 +687,25 @@
             trackGeo.setIndex(indices);
             trackGeo.computeVertexNormals();
 
-            // Sand Texture
+            // Dirt Track Texture
             const sandCanvas = document.createElement('canvas');
             sandCanvas.width = 512; sandCanvas.height = 512;
             const sCtx = sandCanvas.getContext('2d');
-            sCtx.fillStyle = '#4E342E'; sCtx.fillRect(0, 0, 512, 512);
-            for (let i = 0; i < 50000; i++) {
-                sCtx.fillStyle = Math.random() > 0.5 ? '#3E2723' : '#795548';
-                sCtx.fillRect(Math.random() * 512, Math.random() * 512, 3, 3);
+            // Dark brown dirt base
+            sCtx.fillStyle = '#6B4423';
+            sCtx.fillRect(0, 0, 512, 512);
+            // Add dirt texture with varied browns
+            for (let i = 0; i < 100000; i++) {
+                const rand = Math.random();
+                if (rand < 0.4) {
+                    sCtx.fillStyle = '#8B5A3C'; // Lighter brown
+                } else if (rand < 0.7) {
+                    sCtx.fillStyle = '#5C3317'; // Darker brown
+                } else {
+                    sCtx.fillStyle = '#A0522D'; // Sienna
+                }
+                const size = Math.random() < 0.8 ? 1 : 2;
+                sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
             }
             const trackTex = new THREE.CanvasTexture(sandCanvas);
             trackTex.wrapS = THREE.RepeatWrapping;
@@ -686,7 +713,8 @@
             trackTex.repeat.set(1, 1);
 
             const trackMesh = new THREE.Mesh(trackGeo, new THREE.MeshStandardMaterial({
-                map: trackTex, color: 0x888888, roughness: 1.0
+                map: trackTex, color: 0xffffff, roughness: 1.0,
+                polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
             }));
             trackMesh.receiveShadow = true;
             scene.add(trackMesh);
@@ -806,7 +834,7 @@
                 this.currentT = 0; this.speed = 0;
                 this.baseSpeed = (0.045 + Math.random() * 0.01) * CONFIG.raceSpeedMult;
                 this.maxSpeed = this.baseSpeed * 1.5;
-                this.stamina = 1.0; this.finished = false;
+                this.stamina = 1.0; this.finished = false; this.finishRank = null;
                 this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
                 this.laneOffset = (id - 2) * CONFIG.laneWidth;
                 this.createModel(data.color); scene.add(this.mesh); this.reset();
@@ -833,7 +861,7 @@
             }
 
             reset() {
-                this.currentT = CONFIG.startLineT; this.finished = false; this.speed = 0;
+                this.currentT = CONFIG.startLineT; this.finished = false; this.finishRank = null; this.speed = 0;
                 // Race variability: reroll stats per race
                 this.baseSpeed = (0.045 + Math.random() * 0.012) * CONFIG.raceSpeedMult;
                 this.maxSpeed = this.baseSpeed * (1.4 + Math.random() * 0.3);
@@ -919,6 +947,7 @@
         function announce(msg) {
             txt.innerText = msg;
             box.classList.add('active');
+            SoundManager.speak(msg); // Read aloud
             setTimeout(() => {
                 if (txt.innerText === msg) box.classList.remove('active');
             }, 3000);
@@ -1073,12 +1102,20 @@
         function toggleCamera() { STATE.cameraMode = (STATE.cameraMode + 1) % 3; }
 
         function updateRankingUI() {
-            const sorted = [...STATE.horses].sort((a, b) => b.currentT - a.currentT);
+            // Sort: Finished horses by rank, then running horses by position
+            const sorted = [...STATE.horses].sort((a, b) => {
+                if (a.finished && b.finished) return a.finishRank - b.finishRank;
+                if (a.finished) return -1;
+                if (b.finished) return 1;
+                return b.currentT - a.currentT;
+            });
             const list = document.getElementById('rank-list'); list.innerHTML = "";
             sorted.forEach((h, i) => {
                 const li = document.createElement('li'); li.className = "flex items-center justify-between p-1 rounded bg-white/10";
                 const isPlayer = (h.id === STATE.selectedHorse); if (isPlayer) li.classList.add("border", "border-yellow-500/50");
-                li.innerHTML = `<div class="flex items-center gap-2"><span class="w-4 text-center font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-400'}">${i + 1}</span><div class="w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style="background:#${h.mat.color.getHexString()}">${h.icon}</div><span class="text-xs truncate w-24 ${isPlayer ? 'text-yellow-200' : 'text-gray-300'}">${h.name}</span></div>`;
+                const rankDisplay = h.finished ? h.finishRank : i + 1;
+                const rankClass = h.finished ? 'text-green-400' : (i === 0 ? 'text-yellow-400' : 'text-gray-400');
+                li.innerHTML = `<div class="flex items-center gap-2"><span class="w-4 text-center font-bold ${rankClass}">${rankDisplay}</span><div class="w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style="background:#${h.mat.color.getHexString()}">${h.icon}</div><span class="text-xs truncate w-24 ${isPlayer ? 'text-yellow-200' : 'text-gray-300'}">${h.name}</span></div>${h.finished ? '<span class="text-[10px] text-green-400">✓</span>' : ''}`;
                 list.appendChild(li);
             });
         }
@@ -1109,7 +1146,17 @@
                 if (STATE.raceStarted) {
                     let finishedCount = 0;
                     STATE.horses.forEach(h => {
-                        if (!h.finished) { h.update(delta); if (h.finished && !STATE.winner) STATE.winner = h; } else { finishedCount++; }
+                        if (!h.finished) {
+                            h.update(delta);
+                            if (h.finished) {
+                                // Assign finish rank
+                                const finishedHorses = STATE.horses.filter(horse => horse.finished);
+                                h.finishRank = finishedHorses.length;
+                                if (!STATE.winner) STATE.winner = h;
+                            }
+                        } else {
+                            finishedCount++;
+                        }
                     });
                     updateCommentary(time);
                     if (time - lastRankUpdate > 0.5) {

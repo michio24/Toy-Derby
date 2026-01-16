@@ -603,8 +603,61 @@
             gates: [],
             cameraMode: 0,
             trackCurve: null,
-            winner: null
+            winner: null,
+            weather: null,
+            trackCondition: null,
+            rainParticles: null
         };
+
+        // --- Weather System ---
+        const WEATHER_TYPES = [
+            {
+                name: '晴れ',
+                icon: '☀',
+                trackCondition: '良',
+                speedMultiplier: 1.0,
+                skyColor: 0x87CEEB,
+                fogColor: 0x87CEEB,
+                ambientIntensity: 0.6,
+                directionalIntensity: 1.2,
+                directionalColor: 0xffffff
+            },
+            {
+                name: '夕方',
+                icon: '🌆',
+                trackCondition: '良',
+                speedMultiplier: 1.0,
+                skyColor: 0xFF6B35,
+                fogColor: 0xFF8C69,
+                ambientIntensity: 0.5,
+                directionalIntensity: 0.9,
+                directionalColor: 0xFFAA77
+            },
+            {
+                name: '雨',
+                icon: '☔',
+                trackCondition: '重',
+                speedMultiplier: 0.85,
+                skyColor: 0x4A5568,
+                fogColor: 0x718096,
+                ambientIntensity: 0.4,
+                directionalIntensity: 0.7,
+                directionalColor: 0xCCCCCC,
+                rain: true
+            },
+            {
+                name: '夜',
+                icon: '🌃',
+                trackCondition: '良',
+                speedMultiplier: 1.0,
+                skyColor: 0x0A1128,
+                fogColor: 0x1A2332,
+                ambientIntensity: 0.3,
+                directionalIntensity: 1.5,
+                directionalColor: 0xFFFFDD,
+                night: true
+            }
+        ];
 
         // --- Three.js Setup ---
         const scene = new THREE.Scene();
@@ -632,6 +685,57 @@
         dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
         dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
         scene.add(dirLight);
+
+        // --- Weather Functions ---
+        function createRainParticles() {
+            const rainGeo = new THREE.BufferGeometry();
+            const rainCount = 2000;
+            const positions = [];
+
+            for (let i = 0; i < rainCount; i++) {
+                positions.push(
+                    (Math.random() - 0.5) * 400,
+                    Math.random() * 200,
+                    (Math.random() - 0.5) * 400
+                );
+            }
+
+            rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const rainMaterial = new THREE.PointsMaterial({
+                color: 0xaaaaaa,
+                size: 0.5,
+                transparent: true,
+                opacity: 0.6
+            });
+
+            return new THREE.Points(rainGeo, rainMaterial);
+        }
+
+        function applyWeather(weather) {
+            // Set sky and fog
+            scene.background.setHex(weather.skyColor);
+            scene.fog.color.setHex(weather.fogColor);
+
+            // Update lighting
+            hemiLight.intensity = weather.ambientIntensity;
+            dirLight.intensity = weather.directionalIntensity;
+            dirLight.color.setHex(weather.directionalColor);
+
+            // Remove existing rain if any
+            if (STATE.rainParticles) {
+                scene.remove(STATE.rainParticles);
+                STATE.rainParticles = null;
+            }
+
+            // Add rain particles if rainy weather
+            if (weather.rain) {
+                STATE.rainParticles = createRainParticles();
+                scene.add(STATE.rainParticles);
+            }
+
+            STATE.weather = weather;
+            STATE.trackCondition = weather.trackCondition;
+        }
 
         // --- Environment & Track ---
         function createTrackCurve() {
@@ -867,7 +971,8 @@
             reset() {
                 this.currentT = CONFIG.startLineT; this.finished = false; this.finishRank = null; this.speed = 0;
                 // Race variability: reroll stats per race
-                this.baseSpeed = (0.045 + Math.random() * 0.012) * CONFIG.raceSpeedMult;
+                const weatherMultiplier = STATE.weather ? STATE.weather.speedMultiplier : 1.0;
+                this.baseSpeed = (0.045 + Math.random() * 0.012) * CONFIG.raceSpeedMult * weatherMultiplier;
                 this.maxSpeed = this.baseSpeed * (1.4 + Math.random() * 0.3);
 
                 this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
@@ -1025,6 +1130,11 @@
             if (STATE.wallet < STATE.betAmount) { alert("No money!"); return; }
             STATE.wallet -= STATE.betAmount; document.getElementById('wallet-display').innerText = STATE.wallet;
             STATE.isRacing = true; STATE.raceStarted = false;
+
+            // Set random weather for this race
+            const randomWeather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)];
+            applyWeather(randomWeather);
+
             document.getElementById('betting-panel').classList.add('translate-y-full', 'opacity-0');
             document.getElementById('camera-btn').classList.remove('hidden');
             document.getElementById('rank-panel').classList.remove('hidden');
@@ -1033,7 +1143,7 @@
             STATE.cameraMode = 1; updateCamera(0);
 
             SoundManager.playFanfare();
-            announce("ファンファーレが鳴り響きます...");
+            announce(`${randomWeather.icon} ${randomWeather.name}、馬場状態: ${randomWeather.trackCondition}`);
 
             const cdOverlay = document.getElementById('countdown-overlay');
             const cdText = document.getElementById('countdown-text');
@@ -1205,6 +1315,19 @@
             } else {
                 STATE.horses.forEach(h => { h.body.position.y = 2 + Math.sin(Date.now() * 0.003 + h.id) * 0.05; });
             }
+
+            // Animate rain particles
+            if (STATE.rainParticles) {
+                const positions = STATE.rainParticles.geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    positions[i + 1] -= 2; // Fall down
+                    if (positions[i + 1] < 0) {
+                        positions[i + 1] = 200; // Reset to top
+                    }
+                }
+                STATE.rainParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
             updateCamera(); renderer.render(scene, camera);
         }
 

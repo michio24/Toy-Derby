@@ -739,14 +739,22 @@
 
         // --- Environment & Track ---
         function createTrackCurve() {
-            const points = [];
-            for (let i = 0; i <= CONFIG.segmentCount; i++) {
-                const theta = (i / CONFIG.segmentCount) * Math.PI * 2;
-                const x = Math.cos(theta) * CONFIG.trackRadiusX;
-                const z = Math.sin(theta) * CONFIG.trackRadiusZ;
-                points.push(new THREE.Vector3(x, 0, z));
-            }
-            return new THREE.CatmullRomCurve3(points, true);
+            // Create a more complex, longer track shape
+            // Custom points for a unique layout (twisted oval / kidney shape)
+            const points = [
+                new THREE.Vector3(200, 0, 0),    // Start straight
+                new THREE.Vector3(180, 0, 80),   // Turn 1
+                new THREE.Vector3(100, 0, 120),  // Turn 1 continued
+                new THREE.Vector3(-50, 0, 100),  // Backstretch start
+                new THREE.Vector3(-150, 0, 40),  // Backstretch mid
+                new THREE.Vector3(-220, 0, 0),   // Backstretch end
+                new THREE.Vector3(-180, 0, -80), // Turn 2
+                new THREE.Vector3(-50, 0, -120), // Turn 2 continued / S-curve start
+                new THREE.Vector3(50, 0, -80),   // S-curve mid
+                new THREE.Vector3(150, 0, -60),  // Final turn setup
+                new THREE.Vector3(200, 0, 0)     // Loop close
+            ];
+            return new THREE.CatmullRomCurve3(points, true, 'centripetal');
         }
         STATE.trackCurve = createTrackCurve();
 

@@ -1000,7 +1000,7 @@
                 if (STATE.winner) return; // No skills after winner decided
                 this.skillTriggered = true; this.skillActive = true; this.skillTimer = 3.0;
                 showCutIn(this.name, this.skillName, this.icon);
-                announce(`${this.name}、${this.skillName} 発動！`);
+                // announce(`${this.name}、${this.skillName} 発動！`); // Skill announcement disabled
                 SoundManager.playSkill(); // Play sound
                 this.mat.emissive.setHex(0x444444); this.aura.visible = true; this.aura.material.opacity = 0.5;
 
@@ -1079,19 +1079,71 @@
         }
 
         function updateCommentary(time) {
-            if (time - lastCommentTime < 3.0) return;
+            if (time - lastCommentTime < 3.5) return;
             const sorted = [...STATE.horses].sort((a, b) => b.currentT - a.currentT);
             const leader = sorted[0];
+            const second = sorted[1];
             const p = leader.currentT;
             let msg = "";
-            if (p < 0.1) msg = "さあ、各馬一斉にスタートしました！";
-            else if (p > 0.2 && p < 0.25) msg = "第1コーナーを回ります！";
-            else if (p > 0.45 && p < 0.5) msg = "レースは中盤、向こう正面に入った！";
-            else if (p > 0.7 && p < 0.75) msg = "第3コーナーから第4コーナーへ！";
-            else if (p > 0.85 && p < 0.9) msg = "さあ、最後の直線！抜け出すのは誰だ！？";
-            else {
-                if (leader !== lastLeader) { msg = `${leader.name} が先頭に立った！`; lastLeader = leader; }
-                else if (Math.random() < 0.3) msg = `先頭は依然として ${leader.name}！`;
+
+            if (p < 0.1) {
+                // Keep initial start simple to avoid overlap with gate open
+            } else if (p > 0.15 && p < 0.2) {
+                const phrases = [
+                    `先手を奪ったのは ${leader.name} です！`,
+                    `${leader.name} が果敢にハナを主張しました！`,
+                    `まずは ${leader.name} がレースを引っ張ります。`
+                ];
+                msg = phrases[Math.floor(Math.random() * phrases.length)];
+            } else if (p > 0.45 && p < 0.5) {
+                const phrases = [
+                    "レースは中盤、向こう正面に入っています！",
+                    "各馬、淡々としたペースで進んでいます。",
+                    `${leader.name}、軽快な逃げを見せています！`,
+                    "先頭から最後方まで、隊列は縦長になっています！",
+                    "おっと、後方から一気に馬群が動き出した！"
+                ];
+                msg = phrases[Math.floor(Math.random() * phrases.length)];
+            } else if (p > 0.7 && p < 0.75) {
+                const phrases = [
+                    "さあ、第3コーナーから第4コーナーへ！",
+                    "勝負どころ！各馬スパートの体勢に入ります！",
+                    "後続も差を詰めてきた！混戦模様です！",
+                    `${leader.name}、手応えはどうか！？`,
+                    "4コーナーを回って、直線コースへ！"
+                ];
+                msg = phrases[Math.floor(Math.random() * phrases.length)];
+            } else if (p > 0.85 && p < 0.9) {
+                const phrases = [
+                    "さあ、最後の直線！ここからが勝負だ！",
+                    "直線コースに向いた！抜け出すのは誰だ！？",
+                    "残り200メートル！激しい叩き合い！",
+                    "外から一気に各馬が襲いかかる！",
+                    "内から鋭く伸びてくるのはどの馬だ！？"
+                ];
+                msg = phrases[Math.floor(Math.random() * phrases.length)];
+            } else {
+                if (leader !== lastLeader && p > 0.2) {
+                    const phrases = [
+                        `${leader.name} が先頭に立った！`,
+                        `おっと、ここで ${leader.name} が出た！`,
+                        `${leader.name}、かわした！先頭が変わります！`,
+                        `${leader.name}、一気に先頭へ踊り出た！`
+                    ];
+                    msg = phrases[Math.floor(Math.random() * phrases.length)];
+                    lastLeader = leader;
+                } else if (Math.random() < 0.2) {
+                    const phrases = [
+                        `先頭は依然として ${leader.name}！`,
+                        `${leader.name} がレースを引っ張ります！`,
+                        `2番手には ${second.name} がつけています。`,
+                        `各馬、一団となって進んでいます。`,
+                        `ペースが上がってきました！`,
+                        `${second.name}、虎視眈々とチャンスを伺っています！`,
+                        `まだ各馬、動きはありません。`
+                    ];
+                    msg = phrases[Math.floor(Math.random() * phrases.length)];
+                }
             }
             if (msg) { announce(msg); lastCommentTime = time; }
         }

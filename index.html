@@ -1030,7 +1030,7 @@
             document.getElementById('rank-panel').classList.remove('hidden');
             STATE.horses.forEach(h => { h.reset(); h.speed = 0; });
             STATE.gates.forEach(g => g.reset());
-            STATE.cameraMode = 2; updateCamera(0);
+            STATE.cameraMode = 1; updateCamera(0);
 
             SoundManager.playFanfare();
             announce("ファンファーレが鳴り響きます...");
@@ -1130,14 +1130,44 @@
         function updateCamera(time) {
             let leader = STATE.horses[0]; STATE.horses.forEach(h => { if (h.currentT > leader.currentT) leader = h; });
             const leadPos = leader.mesh.position.clone();
-            if (!STATE.isRacing) { camera.position.set(0, 80, 150); camera.lookAt(0, 0, 0); }
+
+            if (!STATE.isRacing) {
+                // Animated camera tour around the track during horse selection
+                const t = (Date.now() * 0.00008) % 1.0; // Very slow rotation for elegant presentation
+                const tourPoint = STATE.trackCurve.getPointAt(t);
+                const tangent = STATE.trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                // Position camera outside the track, looking inward
+                const camPos = tourPoint.clone()
+                    .add(normal.multiplyScalar(-80)) // Outside the track
+                    .add(new THREE.Vector3(0, 60, 0)); // Elevated view
+
+                const lookAt = tourPoint.clone().add(new THREE.Vector3(0, 5, 0));
+                camera.position.copy(camPos);
+                camera.lookAt(lookAt);
+            }
             else {
                 if (STATE.cameraMode === 0) {
-                    const t = leader.currentT % 1.0; const tan = STATE.trackCurve.getTangentAt(t).normalize();
-                    const camPos = leadPos.clone().sub(tan.multiplyScalar(25)).add(new THREE.Vector3(0, 15, 0));
-                    camera.position.lerp(camPos, 0.1); camera.lookAt(leadPos.clone().add(tan.multiplyScalar(20)));
-                } else if (STATE.cameraMode === 1) { camera.position.lerp(new THREE.Vector3(0, 120, 120), 0.05); camera.lookAt(leadPos); }
-                else { const t = leader.currentT % 1.0; const tan = STATE.trackCurve.getTangentAt(t).normalize(); const side = new THREE.Vector3(-tan.z, 0, tan.x).normalize().multiplyScalar(10); camera.position.copy(leadPos.clone().add(side).add(new THREE.Vector3(0, 5, 0))); camera.lookAt(leadPos); }
+                    // Follow camera - more distant view
+                    const t = leader.currentT % 1.0;
+                    const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                    const camPos = leadPos.clone()
+                        .sub(tan.multiplyScalar(40)) // More distance behind
+                        .add(new THREE.Vector3(0, 25, 0)); // Higher up
+                    camera.position.lerp(camPos, 0.1);
+                    camera.lookAt(leadPos.clone().add(tan.multiplyScalar(20)));
+                } else if (STATE.cameraMode === 1) {
+                    camera.position.lerp(new THREE.Vector3(0, 120, 120), 0.05);
+                    camera.lookAt(leadPos);
+                }
+                else {
+                    const t = leader.currentT % 1.0;
+                    const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                    const side = new THREE.Vector3(-tan.z, 0, tan.x).normalize().multiplyScalar(10);
+                    camera.position.copy(leadPos.clone().add(side).add(new THREE.Vector3(0, 5, 0)));
+                    camera.lookAt(leadPos);
+                }
             }
         }
 

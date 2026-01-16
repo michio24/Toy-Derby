@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Toy Derby: Grand Prix</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        .horse-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .horse-card:active {
+            transform: scale(0.95);
+        }
+
+        .horse-card.selected {
+            border: 3px solid #F59E0B;
+            background: #FFFBEB;
+            transform: translateY(-5px);
+        }
+
+        .horse-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: #F59E0B;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .skill-badge {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            font-size: 0.6rem;
+            text-align: center;
+            padding: 2px;
+        }
+
+        #betting-panel {
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+        }
+
+        #loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a202c;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            transition: opacity 0.5s;
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 4px;
+            background: #333;
+            margin-top: 10px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: #F59E0B;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* Cut-in Animation */
+        #cut-in-overlay {
+            position: absolute;
+            top: 30%;
+            left: -100%;
+            width: 100%;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(255, 165, 0, 0.9) 20%, rgba(255, 165, 0, 0.9) 80%, rgba(0, 0, 0, 0) 100%);
+            z-index: 40;
+            transform: skewX(-20deg);
+            transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        #cut-in-overlay.active {
+            left: -10%;
+            opacity: 1;
+        }
+
+        .cut-in-content {
+            transform: skewX(20deg);
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: center;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .cut-in-text {
+            font-size: 3rem;
+            font-weight: 900;
+            font-style: italic;
+            margin-left: 20px;
+            text-transform: uppercase;
+        }
+
+        .cut-in-horse-name {
+            font-size: 1.2rem;
+            margin-bottom: -10px;
+            opacity: 0.9;
+        }
+
+        .speed-lines {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(90deg, transparent 0, transparent 20px, rgba(255, 255, 255, 0.2) 21px, transparent 22px);
+            animation: speedLines 0.1s linear infinite;
+        }
+
+        @keyframes speedLines {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-20px);
+            }
+        }
+
+        /* Countdown */
+        #countdown-text {
+            text-shadow: 4px 4px 0px #000, 0 0 20px rgba(255, 255, 0, 0.5);
+            transition: opacity 0.5s;
+        }
+
+        .scale-in {
+            animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes scaleIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            80% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1.0);
+                opacity: 1;
+            }
+        }
+
+        /* Rank Panel */
+        #rank-panel {
+            transition: opacity 0.3s;
+        }
+
+        .rank-row {
+            transition: top 0.3s ease-out;
+        }
+
+        /* Commentary Box */
+        #commentary-box {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 600px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 10px 20px;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-shadow: 1px 1px 2px black;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        #commentary-box.active {
+            opacity: 1;
+        }
+
+        .commentary-label {
+            display: inline-block;
+            background: #D32F2F;
+            color: white;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        #sound-toggle {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 8px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            pointer-events: auto;
+            z-index: 60;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="text-3xl font-bold mb-2">Toy Derby GP</div>
+        <div class="text-sm text-gray-400">Building Racecourse...</div>
+        <div class="loading-bar">
+            <div class="loading-progress" id="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="game-ui">
+        <!-- Sound Toggle -->
+        <div id="sound-toggle" onclick="toggleMute()">🔊</div>
+
+        <!-- Countdown Overlay -->
+        <div id="countdown-overlay"
+            class="absolute inset-0 flex items-center justify-center z-50 pointer-events-none hidden">
+            <div id="countdown-text" class="text-9xl font-black text-yellow-400 italic">3</div>
+        </div>
+
+        <!-- Rank Panel (Top Right) -->
+        <div id="rank-panel"
+            class="hidden absolute top-20 right-4 bg-black/60 backdrop-blur-md p-3 rounded-xl text-white w-56 z-20 border border-white/10 shadow-xl">
+            <div class="flex justify-between items-center mb-2 border-b border-white/20 pb-1">
+                <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Live Ranking</h3>
+                <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+            </div>
+            <ul id="rank-list" class="space-y-1"></ul>
+        </div>
+
+        <!-- Commentary Box -->
+        <div id="commentary-box">
+            <span class="commentary-label">LIVE</span>
+            <span id="commentary-text">レース開始を待っています...</span>
+        </div>
+
+        <!-- Cut-in Overlay -->
+        <div id="cut-in-overlay">
+            <div class="speed-lines"></div>
+            <div class="cut-in-content">
+                <div id="cut-in-horse" class="text-6xl">🐴</div>
+                <div class="flex flex-col">
+                    <span id="cut-in-name" class="cut-in-horse-name">Horse Name</span>
+                    <span id="cut-in-skill" class="cut-in-text">SKILL NAME!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <div class="p-4 flex justify-between items-start">
+            <div class="bg-white/90 p-3 rounded-xl shadow-lg backdrop-blur border-l-4 border-yellow-500">
+                <h1 class="text-xl font-extrabold text-gray-800 tracking-tight">🏆 TOY DERBY <span
+                        class="text-yellow-600 text-sm">GP</span></h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <div
+                        class="w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white font-bold">
+                        G</div>
+                    <span id="wallet-display" class="font-bold text-gray-700 text-lg">1000</span>
+                </div>
+            </div>
+            <div id="camera-btn"
+                class="interactive hidden bg-white/30 hover:bg-white/50 p-2 rounded-full cursor-pointer transition backdrop-blur"
+                onclick="toggleCamera()">
+                📷
+            </div>
+        </div>
+
+        <!-- Center: Results -->
+        <div id="center-panel" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div id="result-modal"
+                class="hidden interactive bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center transform scale-95 opacity-0 transition-all duration-300">
+                <div class="text-5xl mb-2">🏁</div>
+                <h2 class="text-3xl font-bold mb-1 text-gray-800">FINISH!</h2>
+                <div id="result-message" class="text-lg mb-4 font-medium text-gray-600">...</div>
+                <div class="bg-gray-100 rounded-lg p-3 mb-6">
+                    <div class="text-xs text-gray-500 uppercase font-bold">Payout</div>
+                    <div id="payout-display" class="text-3xl font-bold text-yellow-600">0 G</div>
+                </div>
+                <button onclick="resetGame()"
+                    class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition transform hover:scale-[1.02]">
+                    Next Race ➜
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer: Betting -->
+        <div id="betting-panel"
+            class="interactive p-4 pb-8 w-full transition-transform duration-500 ease-in-out transform translate-y-0">
+            <div class="max-w-5xl mx-auto">
+                <div class="flex justify-between items-end mb-4 px-2">
+                    <h3 class="text-white font-bold text-xl drop-shadow-md">出走馬を選択</h3>
+                    <div class="text-white/80 text-sm bg-black/30 px-3 py-1 rounded-full backdrop-blur">
+                        Bet: <span class="font-bold text-yellow-400">100 G</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-5 gap-2 sm:gap-4" id="horse-selector">
+                    <!-- Cards generated by JS -->
+                </div>
+
+                <div class="mt-6 flex justify-center">
+                    <button id="start-btn" onclick="startRace()" disabled
+                        class="bg-gray-300 text-gray-500 font-bold py-4 px-16 rounded-full text-xl shadow-xl transition-all transform scale-100 opacity-70 cursor-not-allowed tracking-wider">
+                        START
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Sound Manager (Web Audio API) ---
+        const SoundManager = {
+            ctx: null,
+            isMuted: false,
+
+            init: function () {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            playOscillator: function (type, freq, duration, startTime = 0, vol = 0.1) {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime + startTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + startTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + startTime);
+                osc.stop(this.ctx.currentTime + startTime + duration);
+            },
+
+            playClick: function () {
+                this.playOscillator('sine', 800, 0.1, 0, 0.1);
+            },
+
+            playCountdown: function (count) {
+                if (count > 0) {
+                    this.playOscillator('square', 600, 0.15, 0, 0.1); // 3, 2, 1
+                } else {
+                    this.playOscillator('square', 1200, 0.4, 0, 0.1); // GO!
+                }
+            },
+
+            playGate: function () {
+                if (!this.ctx || this.isMuted) return;
+                // Burst of noise
+                const bufferSize = this.ctx.sampleRate * 0.5;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const gain = this.ctx.createGain();
+
+                // Lowpass filter for "heavy" gate sound
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 500;
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            },
+
+            playFanfare: function () {
+                if (!this.ctx || this.isMuted) return;
+                // Simple Arpeggio: C, E, G, C
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, i) => {
+                    this.playOscillator('triangle', freq, 0.3, i * 0.15, 0.15);
+                });
+                this.playOscillator('triangle', 1046.50, 0.8, 0.6, 0.15);
+            },
+
+            playSkill: function () {
+                if (!this.ctx || this.isMuted) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.5);
+            },
+
+            playWin: function () {
+                if (!this.ctx || this.isMuted) return;
+                // Major chord
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99].forEach(f => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = f;
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(now); osc.stop(now + 1.0);
+                });
+            },
+
+            // Background noise loop (Crowd/Gallop mix)
+            noiseNode: null,
+            lastOut: 0,
+            playAtmosphere: function (active) {
+                if (!this.ctx || this.isMuted) return;
+                if (active) {
+                    if (this.noiseNode) return; // already playing
+                    // Pink noise ish
+                    const bufferSize = this.ctx.sampleRate * 2;
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        const white = Math.random() * 2 - 1;
+                        data[i] = (this.lastOut + (0.02 * white)) / 1.02;
+                        this.lastOut = data[i];
+                        data[i] *= 3.5;
+                    }
+                    this.noiseNode = this.ctx.createBufferSource();
+                    this.noiseNode.buffer = buffer;
+                    this.noiseNode.loop = true;
+
+                    const gain = this.ctx.createGain();
+                    gain.gain.value = 0.05;
+
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 400;
+
+                    this.noiseNode.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    this.noiseNode.start();
+                    this.bgGain = gain;
+                } else {
+                    if (this.noiseNode) {
+                        this.noiseNode.stop();
+                        this.noiseNode = null;
+                        this.lastOut = 0;
+                    }
+                }
+            }
+        };
+
+        function toggleMute() {
+            SoundManager.isMuted = !SoundManager.isMuted;
+            document.getElementById('sound-toggle').innerText = SoundManager.isMuted ? '🔇' : '🔊';
+            if (SoundManager.isMuted) SoundManager.playAtmosphere(false);
+        }
+
+        // --- Configuration & Constants ---
+        const CONFIG = {
+            laneWidth: 3.5,
+            trackRadiusX: 120,
+            trackRadiusZ: 60,
+            segmentCount: 200,
+            finishLineT: 0.0,
+            startLineT: 0.0,
+            raceSpeedMult: 1.0
+        };
+
+        const HORSE_DATA = [
+            {
+                name: "ホワイトウィンド", color: 0xF0F0F0, skill: "Divine Wind", skillDesc: "ラストスパート超加速", icon: "🌪️",
+                check: (p, r) => p > 0.75 && r < 0.02,
+                activate: (h) => h.speed *= 1.8
+            },
+            {
+                name: "チョコチップ", color: 0x5D4037, skill: "Sugar Rush", skillDesc: "中盤で爆発的な加速", icon: "🍩",
+                check: (p, r) => p > 0.4 && p < 0.6 && r < 0.02,
+                activate: (h) => h.speed *= 1.6
+            },
+            {
+                name: "ブラックジャック", color: 0x212121, skill: "Shadow Step", skillDesc: "スタミナ減らずに加速", icon: "🌑",
+                check: (p, r) => p > 0.5 && r < 0.01,
+                activate: (h) => h.speed *= 1.4
+            },
+            {
+                name: "ゴールデンボーイ", color: 0xFFD700, skill: "Gold Aura", skillDesc: "全体的な速度底上げ", icon: "✨",
+                check: (p, r) => p > 0.2 && r < 0.01,
+                activate: (h) => { h.speed *= 1.25; h.skillTimer = 6.0; }
+            },
+            {
+                name: "シルバーブレット", color: 0xA9A9A9, skill: "Bullet Time", skillDesc: "ゴール直前で一瞬の伸び", icon: "🚅",
+                check: (p, r) => p > 0.85 && r < 0.03,
+                activate: (h) => { h.speed *= 2.5; h.skillTimer = 1.5; }
+            }
+        ];
+
+        const STATE = {
+            wallet: 1000,
+            betAmount: 100,
+            selectedHorse: null,
+            isRacing: false,
+            raceStarted: false,
+            horses: [],
+            gates: [],
+            cameraMode: 0,
+            trackCurve: null,
+            winner: null
+        };
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 40, 350);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(100, 200, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        const d = 250;
+        dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
+        scene.add(dirLight);
+
+        // --- Environment & Track ---
+        function createTrackCurve() {
+            const points = [];
+            for (let i = 0; i <= CONFIG.segmentCount; i++) {
+                const theta = (i / CONFIG.segmentCount) * Math.PI * 2;
+                const x = Math.cos(theta) * CONFIG.trackRadiusX;
+                const z = Math.sin(theta) * CONFIG.trackRadiusZ;
+                points.push(new THREE.Vector3(x, 0, z));
+            }
+            return new THREE.CatmullRomCurve3(points, true);
+        }
+        STATE.trackCurve = createTrackCurve();
+
+        function buildTrack() {
+            // Ground
+            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+            const grassCanvas = document.createElement('canvas');
+            grassCanvas.width = 512; grassCanvas.height = 512;
+            const ctx = grassCanvas.getContext('2d');
+            ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 40000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
+                ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+            }
+            const groundMat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(grassCanvas), roughness: 1.0 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Track Surface (Corrected UVs & Texture)
+            const trackWidth = CONFIG.laneWidth * 6;
+            const points = STATE.trackCurve.getSpacedPoints(400);
+            const vertices = [], uvs = [], indices = [];
+
+            points.forEach((p, i) => {
+                const tangent = STATE.trackCurve.getTangentAt(i / 400).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const p1 = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
+                const p2 = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
+                vertices.push(p1.x, 0.05, p1.z, p2.x, 0.05, p2.z);
+                const v = i / 10;
+                uvs.push(0, v, 1, v);
+            });
+            for (let i = 0; i < points.length - 1; i++) {
+                const offset = i * 2;
+                indices.push(offset, offset + 1, offset + 2, offset + 1, offset + 3, offset + 2);
+            }
+            const trackGeo = new THREE.BufferGeometry();
+            trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            trackGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            trackGeo.setIndex(indices);
+            trackGeo.computeVertexNormals();
+
+            // Sand Texture
+            const sandCanvas = document.createElement('canvas');
+            sandCanvas.width = 512; sandCanvas.height = 512;
+            const sCtx = sandCanvas.getContext('2d');
+            sCtx.fillStyle = '#4E342E'; sCtx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 50000; i++) {
+                sCtx.fillStyle = Math.random() > 0.5 ? '#3E2723' : '#795548';
+                sCtx.fillRect(Math.random() * 512, Math.random() * 512, 3, 3);
+            }
+            const trackTex = new THREE.CanvasTexture(sandCanvas);
+            trackTex.wrapS = THREE.RepeatWrapping;
+            trackTex.wrapT = THREE.RepeatWrapping;
+            trackTex.repeat.set(1, 1);
+
+            const trackMesh = new THREE.Mesh(trackGeo, new THREE.MeshStandardMaterial({
+                map: trackTex, color: 0x888888, roughness: 1.0
+            }));
+            trackMesh.receiveShadow = true;
+            scene.add(trackMesh);
+
+            // Objects
+            const innerRailPoints = [], outerRailPoints = [];
+            points.forEach((p, i) => {
+                const tangent = STATE.trackCurve.getTangentAt(i / 400).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                if (i % 5 === 0) {
+                    const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.2);
+                    const poleMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                    const posIn = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2 * 1.05));
+                    const poleIn = new THREE.Mesh(poleGeo, poleMat); poleIn.position.set(posIn.x, 0.6, posIn.z);
+                    scene.add(poleIn);
+                    const posOut = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2 * 1.05));
+                    const poleOut = new THREE.Mesh(poleGeo, poleMat); poleOut.position.set(posOut.x, 0.6, posOut.z);
+                    scene.add(poleOut);
+                }
+                innerRailPoints.push(p.clone().add(normal.clone().multiplyScalar(trackWidth / 2 * 1.05)).setY(1.0));
+                outerRailPoints.push(p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2 * 1.05)).setY(1.0));
+            });
+            scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(innerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
+            scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(outerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
+
+            const goalT = CONFIG.finishLineT;
+            const goalPoint = STATE.trackCurve.getPointAt(goalT);
+            const prevPoint = STATE.trackCurve.getPointAt(0.99);
+            const goalGroup = new THREE.Group();
+            goalGroup.position.copy(goalPoint); goalGroup.lookAt(prevPoint);
+            const postGeo = new THREE.CylinderGeometry(0.3, 0.3, 8); const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const gp1 = new THREE.Mesh(postGeo, postMat); gp1.position.set(-trackWidth / 2 - 1, 4, 0);
+            const gp2 = new THREE.Mesh(postGeo, postMat); gp2.position.set(trackWidth / 2 + 1, 4, 0);
+            const banner = new THREE.Mesh(new THREE.BoxGeometry(trackWidth + 4, 2, 0.5), new THREE.MeshStandardMaterial({ color: 0xB71C1C }));
+            banner.position.set(0, 7, 0);
+            const tCtx = document.createElement('canvas').getContext('2d'); tCtx.canvas.width = 256; tCtx.canvas.height = 64;
+            tCtx.fillStyle = '#B71C1C'; tCtx.fillRect(0, 0, 256, 64); tCtx.fillStyle = 'white'; tCtx.font = 'bold 40px Arial'; tCtx.textAlign = 'center'; tCtx.textBaseline = 'middle'; tCtx.fillText('GOAL', 128, 32);
+            banner.material = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(tCtx.canvas) });
+            goalGroup.add(gp1, gp2, banner); scene.add(goalGroup);
+
+            const standGroup = new THREE.Group();
+            standGroup.add(new THREE.Mesh(new THREE.BoxGeometry(60, 20, 30), new THREE.MeshStandardMaterial({ color: 0xffffff })).translateX(0).translateY(10));
+            standGroup.add(new THREE.Mesh(new THREE.BoxGeometry(64, 2, 40), new THREE.MeshStandardMaterial({ color: 0xeeeeee })).translateY(25).translateZ(5));
+            const goalTangent = STATE.trackCurve.getTangentAt(goalT).normalize();
+            const goalNormal = new THREE.Vector3(-goalTangent.z, 0, goalTangent.x).normalize();
+            standGroup.position.copy(goalPoint.clone().add(goalNormal.multiplyScalar(-45))); standGroup.lookAt(goalPoint); scene.add(standGroup);
+
+            const treeGeo = new THREE.ConeGeometry(3, 8, 8); const treeMat = new THREE.MeshStandardMaterial({ color: 0x2E7D32 });
+            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.5, 3); const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5D4037 });
+            for (let i = 0; i < 40; i++) {
+                const t = Math.random(); const p = STATE.trackCurve.getPointAt(t);
+                const tan = STATE.trackCurve.getTangentAt(t).normalize(); const nor = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+                const dist = 30 + Math.random() * 50; const side = Math.random() > 0.3 ? 1 : -1;
+                const treePos = p.add(nor.multiplyScalar(dist * side));
+                const tree = new THREE.Group();
+                tree.add(new THREE.Mesh(treeGeo, treeMat).translateY(5)); tree.add(new THREE.Mesh(trunkGeo, trunkMat).translateY(1.5));
+                tree.position.copy(treePos); scene.add(tree);
+            }
+        }
+
+        document.getElementById('progress-bar').style.width = '50%';
+        buildTrack();
+
+        // --- Gate Class ---
+        const GATE_GEO = {
+            post: new THREE.BoxGeometry(0.2, 4, 0.2),
+            top: new THREE.BoxGeometry(3.2, 0.4, 0.4),
+            door: new THREE.BoxGeometry(1.4, 3, 0.1),
+            bars: new THREE.BoxGeometry(1.2, 2.5, 0.15)
+        };
+
+        class Gate {
+            constructor(laneOffset) {
+                this.mesh = new THREE.Group();
+                const t = CONFIG.startLineT;
+                const point = STATE.trackCurve.getPointAt(t);
+                const tangent = STATE.trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const pos = point.add(normal.multiplyScalar(laneOffset));
+                this.mesh.position.copy(pos); this.mesh.lookAt(pos.clone().add(tangent));
+
+                const mat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.5 });
+
+                const p1 = new THREE.Mesh(GATE_GEO.post, mat); p1.position.set(-1.5, 2, 0);
+                const p2 = new THREE.Mesh(GATE_GEO.post, mat); p2.position.set(1.5, 2, 0);
+                const top = new THREE.Mesh(GATE_GEO.top, mat); top.position.set(0, 3.8, 0);
+                this.mesh.add(p1, p2, top);
+
+                const createDoor = (isLeft) => {
+                    const group = new THREE.Group(); group.position.set(isLeft ? -1.5 : 1.5, 2, 0);
+                    const door = new THREE.Mesh(GATE_GEO.door, doorMat); door.position.set(isLeft ? 0.7 : -0.7, 0, 0);
+                    const bars = new THREE.Mesh(GATE_GEO.bars, new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true }));
+                    bars.position.set(isLeft ? 0.7 : -0.7, 0, 0);
+                    group.add(door, bars);
+                    return group;
+                };
+                this.leftDoor = createDoor(true); this.rightDoor = createDoor(false);
+                this.mesh.add(this.leftDoor, this.rightDoor);
+                this.isOpen = false; scene.add(this.mesh);
+            }
+            open() { this.isOpen = true; }
+            reset() { this.isOpen = false; this.leftDoor.rotation.y = 0; this.rightDoor.rotation.y = 0; }
+            update(delta) {
+                if (this.isOpen && this.leftDoor.rotation.y < 1.8) {
+                    const speed = 8.0; this.leftDoor.rotation.y += delta * speed; this.rightDoor.rotation.y -= delta * speed;
+                }
+            }
+        }
+
+        // --- Horse Class ---
+        class Horse {
+            constructor(id, data) {
+                this.id = id; this.name = data.name; this.skillName = data.skill; this.skillDesc = data.skillDesc; this.icon = data.icon;
+                this.checkSkill = data.check; this.applySkill = data.activate; // Store logic
+                this.mesh = new THREE.Group();
+                this.currentT = 0; this.speed = 0;
+                this.baseSpeed = (0.045 + Math.random() * 0.01) * CONFIG.raceSpeedMult;
+                this.maxSpeed = this.baseSpeed * 1.5;
+                this.stamina = 1.0; this.finished = false;
+                this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
+                this.laneOffset = (id - 2) * CONFIG.laneWidth;
+                this.createModel(data.color); scene.add(this.mesh); this.reset();
+            }
+            // ... (createModel and reset methods remain unchanged, just skipped in this diff for brevity if they are not needing changes, but I need to be careful about line numbers. I will replace the whole block to be safe)
+
+            createModel(colorHex) {
+                this.mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4, metalness: 0.1 });
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), this.mat); body.position.y = 2; body.castShadow = true; this.body = body;
+                const neck = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.8), this.mat); neck.position.set(0, 2.8, 0.8); neck.rotation.x = -0.5; neck.castShadow = true;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 1.2), this.mat); head.position.set(0, 3.6, 1.4); head.castShadow = true;
+                this.legs = [];
+                const legG = new THREE.CylinderGeometry(0.15, 0.1, 1.5);
+                [[-0.3, 0.6], [0.3, 0.6], [-0.3, -0.8], [0.3, -0.8]].forEach(p => {
+                    const g = new THREE.Group(); g.position.set(p[0], 1.5, p[1]);
+                    const l = new THREE.Mesh(legG, this.mat); l.position.y = -0.75; l.castShadow = true;
+                    g.add(l); this.mesh.add(g); this.legs.push(g);
+                });
+                const tail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), this.mat); tail.position.set(0, 2.2, -1.0); tail.rotation.x = 0.5; this.tail = tail;
+                this.mesh.add(body, neck, head, tail);
+                const auraGeo = new THREE.SphereGeometry(2.5, 16, 16);
+                const auraMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true, transparent: true, opacity: 0 });
+                this.aura = new THREE.Mesh(auraGeo, auraMat); this.aura.visible = false; this.mesh.add(this.aura);
+            }
+
+            reset() {
+                this.currentT = CONFIG.startLineT; this.finished = false; this.speed = 0;
+                this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
+                this.mat.emissive.setHex(0x000000); this.aura.visible = false;
+                this.legs.forEach(l => l.rotation.x = 0); this.updatePosition();
+            }
+
+            activateSkill() {
+                if (this.skillTriggered) return;
+                this.skillTriggered = true; this.skillActive = true; this.skillTimer = 3.0;
+                showCutIn(this.name, this.skillName, this.icon);
+                announce(`${this.name}、${this.skillName} 発動！`);
+                SoundManager.playSkill(); // Play sound
+                this.mat.emissive.setHex(0x444444); this.aura.visible = true; this.aura.material.opacity = 0.5;
+
+                // Execute logical effect from data
+                if (this.applySkill) this.applySkill(this);
+            }
+
+            updatePosition() {
+                const t = this.currentT % 1.0;
+                const point = STATE.trackCurve.getPointAt(t);
+                const tangent = STATE.trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+                const pos = point.add(normal.multiplyScalar(this.laneOffset));
+                const backward = tangent.clone().multiplyScalar(-1.5);
+                pos.add(backward);
+                this.mesh.position.copy(pos); this.mesh.lookAt(pos.clone().add(tangent));
+            }
+
+            update(delta) {
+                if (this.finished) { this.legs.forEach(l => l.rotation.x = 0); return; }
+                if (this.speed < this.baseSpeed) this.speed += delta * 0.05;
+
+                const progress = this.currentT;
+                if (!this.skillTriggered && this.speed > 0.01) {
+                    const r = Math.random();
+                    // Use data-driven check
+                    if (this.checkSkill && this.checkSkill(progress, r)) {
+                        this.activateSkill();
+                    }
+                }
+
+                if (this.skillActive) {
+                    this.skillTimer -= delta;
+                    this.aura.rotation.y += delta * 5;
+                    this.aura.scale.setScalar(1.0 + Math.sin(Date.now() * 0.01) * 0.2);
+                    if (this.skillTimer <= 0) {
+                        this.skillActive = false;
+                        this.mat.emissive.setHex(0x000000);
+                        this.aura.visible = false;
+                    }
+                } else {
+                    if (Math.random() < 0.05) this.speed += (Math.random() - 0.5) * 0.001;
+                }
+
+                this.currentT += this.speed * delta;
+                this.updatePosition();
+
+                if (this.currentT >= 1.0 && !this.finished) {
+                    this.finished = true;
+                    this.body.position.y += 1;
+                }
+
+                const runFreq = 20 + (this.speed * 200); const animT = Date.now() * 0.001;
+                this.body.position.y = 2 + Math.sin(animT * runFreq) * 0.1;
+                this.legs[0].rotation.x = Math.sin(animT * runFreq) * 0.8;
+                this.legs[1].rotation.x = Math.sin(animT * runFreq + Math.PI) * 0.8;
+                this.legs[2].rotation.x = Math.sin(animT * runFreq + Math.PI / 2) * 0.8;
+                this.legs[3].rotation.x = Math.sin(animT * runFreq - Math.PI / 2) * 0.8;
+            }
+        }
+
+        // --- Commentary System ---
+        let lastCommentTime = 0;
+        let lastLeader = null;
+        let commentQueue = [];
+        const box = document.getElementById('commentary-box');
+        const txt = document.getElementById('commentary-text');
+
+        function announce(msg) {
+            txt.innerText = msg;
+            box.classList.add('active');
+            setTimeout(() => {
+                if (txt.innerText === msg) box.classList.remove('active');
+            }, 3000);
+        }
+
+        function updateCommentary(time) {
+            if (time - lastCommentTime < 3.0) return;
+            const sorted = [...STATE.horses].sort((a, b) => b.currentT - a.currentT);
+            const leader = sorted[0];
+            const p = leader.currentT;
+            let msg = "";
+            if (p < 0.1) msg = "さあ、各馬一斉にスタートしました！";
+            else if (p > 0.2 && p < 0.25) msg = "第1コーナーを回ります！";
+            else if (p > 0.45 && p < 0.5) msg = "レースは中盤、向こう正面に入った！";
+            else if (p > 0.7 && p < 0.75) msg = "第3コーナーから第4コーナーへ！";
+            else if (p > 0.85 && p < 0.9) msg = "さあ、最後の直線！抜け出すのは誰だ！？";
+            else {
+                if (leader !== lastLeader) { msg = `${leader.name} が先頭に立った！`; lastLeader = leader; }
+                else if (Math.random() < 0.3) msg = `先頭は依然として ${leader.name}！`;
+            }
+            if (msg) { announce(msg); lastCommentTime = time; }
+        }
+
+        // --- UI & Game Logic ---
+        function showCutIn(name, skill, icon) {
+            const el = document.getElementById('cut-in-overlay');
+            document.getElementById('cut-in-name').innerText = name;
+            document.getElementById('cut-in-skill').innerText = skill;
+            document.getElementById('cut-in-horse').innerText = icon;
+            el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
+            setTimeout(() => el.classList.remove('active'), 1500);
+        }
+
+        function initGame() {
+            document.getElementById('progress-bar').style.width = '80%';
+            HORSE_DATA.forEach((data, index) => {
+                const h = new Horse(index, data); STATE.horses.push(h);
+                const gate = new Gate((index - 2) * CONFIG.laneWidth); STATE.gates.push(gate);
+            });
+            const selector = document.getElementById('horse-selector');
+            HORSE_DATA.forEach((data, index) => {
+                const el = document.createElement('div');
+                el.className = 'horse-card p-2 cursor-pointer flex flex-col items-center';
+                el.innerHTML = `<div class="horse-badge">x${(Math.random() * 2 + 1.5).toFixed(1)}</div><div class="w-10 h-10 rounded-full mb-1 border-2 border-gray-200 text-xl flex items-center justify-center" style="background:#${data.color.toString(16)}">${data.icon}</div><div class="text-xs font-bold text-gray-700 leading-tight text-center">${data.name}</div><div class="skill-badge">${data.skill}</div>`;
+                el.dataset.odds = el.querySelector('.horse-badge').innerText.replace('x', '');
+                el.onclick = () => selectHorse(index, el);
+                selector.appendChild(el);
+            });
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = 0;
+                setTimeout(() => document.getElementById('loader').remove(), 500);
+            }, 1000);
+            updateCamera(0);
+        }
+
+        function selectHorse(index, el) {
+            SoundManager.init(); // Initialize audio context on first click
+            SoundManager.playClick();
+            if (STATE.isRacing) return;
+            STATE.selectedHorse = index;
+            document.querySelectorAll('.horse-card').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+            const btn = document.getElementById('start-btn');
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed', 'opacity-70');
+            btn.classList.add('bg-gradient-to-r', 'from-yellow-500', 'to-orange-600', 'text-white', 'hover:scale-105');
+            btn.innerHTML = "START RACE!";
+        }
+
+        function startRace() {
+            if (STATE.wallet < STATE.betAmount) { alert("No money!"); return; }
+            STATE.wallet -= STATE.betAmount; document.getElementById('wallet-display').innerText = STATE.wallet;
+            STATE.isRacing = true; STATE.raceStarted = false;
+            document.getElementById('betting-panel').classList.add('translate-y-full', 'opacity-0');
+            document.getElementById('camera-btn').classList.remove('hidden');
+            document.getElementById('rank-panel').classList.remove('hidden');
+            STATE.horses.forEach(h => { h.reset(); h.speed = 0; });
+            STATE.gates.forEach(g => g.reset());
+            STATE.cameraMode = 2; updateCamera(0);
+
+            SoundManager.playFanfare();
+            announce("ファンファーレが鳴り響きます...");
+
+            const cdOverlay = document.getElementById('countdown-overlay');
+            const cdText = document.getElementById('countdown-text');
+            cdOverlay.classList.remove('hidden'); cdText.style.opacity = "1";
+            let count = 3;
+
+            // Wait for Fanfare (roughly 3s) then start countdown
+            setTimeout(() => {
+                cdText.innerText = count;
+                cdText.className = "text-9xl font-black text-white drop-shadow-lg scale-in";
+                SoundManager.playCountdown(3);
+
+                const interval = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        cdText.innerText = count; cdText.classList.remove('scale-in'); void cdText.offsetWidth; cdText.classList.add('scale-in');
+                        SoundManager.playCountdown(count);
+                    } else if (count === 0) {
+                        cdText.innerText = "GO!"; cdText.classList.remove('text-white'); cdText.classList.add('text-yellow-400', 'scale-in');
+                        SoundManager.playCountdown(0); // GO sound
+                        SoundManager.playGate();
+                        SoundManager.playAtmosphere(true); // Start crowd/run noise
+
+                        STATE.gates.forEach(g => g.open());
+                        announce("ゲートが開いた！");
+                        setTimeout(() => {
+                            STATE.raceStarted = true;
+                            STATE.horses.forEach(h => { h.speed = h.baseSpeed * 0.3; });
+                        }, 200);
+                    } else {
+                        clearInterval(interval); cdText.style.opacity = "0";
+                        setTimeout(() => { cdOverlay.classList.add('hidden'); cdText.innerText = ""; cdText.style.opacity = "1"; }, 500);
+                    }
+                }, 1000);
+            }, 2500);
+        }
+
+        function finishRace(winner) {
+            STATE.isRacing = false; STATE.raceStarted = false;
+            const win = (winner.id === STATE.selectedHorse);
+            document.getElementById('rank-panel').classList.add('hidden');
+            announce(`勝ったのは ${winner.name}！！`);
+            SoundManager.playAtmosphere(false);
+
+            if (win) SoundManager.playWin();
+
+            setTimeout(() => {
+                const modal = document.getElementById('result-modal'); modal.classList.remove('hidden', 'scale-95', 'opacity-0');
+                const msg = document.getElementById('result-message'); const pay = document.getElementById('payout-display');
+                if (win) {
+                    const cards = document.querySelectorAll('.horse-card'); const odds = parseFloat(cards[STATE.selectedHorse].dataset.odds);
+                    const prize = Math.floor(STATE.betAmount * odds); STATE.wallet += prize;
+                    msg.innerHTML = `<span class="text-green-600 font-bold">${winner.name}</span> WON!`; pay.innerText = `+${prize} G`;
+                    document.getElementById('wallet-display').innerText = STATE.wallet;
+                } else {
+                    msg.innerHTML = `Winner: <span class="text-gray-800 font-bold">${winner.name}</span>`; pay.innerText = "0 G";
+                }
+            }, 2000);
+        }
+
+        function resetGame() {
+            document.getElementById('result-modal').classList.add('hidden', 'scale-95', 'opacity-0');
+            document.getElementById('betting-panel').classList.remove('translate-y-full', 'opacity-0');
+            document.getElementById('camera-btn').classList.add('hidden');
+            STATE.horses.forEach(h => h.reset()); STATE.gates.forEach(g => g.reset()); updateCamera(0);
+            document.getElementById('commentary-box').classList.remove('active');
+            SoundManager.playAtmosphere(false);
+        }
+
+        function toggleCamera() { STATE.cameraMode = (STATE.cameraMode + 1) % 3; }
+
+        function updateRankingUI() {
+            const sorted = [...STATE.horses].sort((a, b) => b.currentT - a.currentT);
+            const list = document.getElementById('rank-list'); list.innerHTML = "";
+            sorted.forEach((h, i) => {
+                const li = document.createElement('li'); li.className = "flex items-center justify-between p-1 rounded bg-white/10";
+                const isPlayer = (h.id === STATE.selectedHorse); if (isPlayer) li.classList.add("border", "border-yellow-500/50");
+                li.innerHTML = `<div class="flex items-center gap-2"><span class="w-4 text-center font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-400'}">${i + 1}</span><div class="w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style="background:#${h.mat.color.getHexString()}">${h.icon}</div><span class="text-xs truncate w-24 ${isPlayer ? 'text-yellow-200' : 'text-gray-300'}">${h.name}</span></div>`;
+                list.appendChild(li);
+            });
+        }
+
+        let lastRankUpdate = 0;
+
+        const clock = new THREE.Clock();
+        function updateCamera(time) {
+            let leader = STATE.horses[0]; STATE.horses.forEach(h => { if (h.currentT > leader.currentT) leader = h; });
+            const leadPos = leader.mesh.position.clone();
+            if (!STATE.isRacing) { camera.position.set(0, 80, 150); camera.lookAt(0, 0, 0); }
+            else {
+                if (STATE.cameraMode === 0) {
+                    const t = leader.currentT % 1.0; const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                    const camPos = leadPos.clone().sub(tan.multiplyScalar(25)).add(new THREE.Vector3(0, 15, 0));
+                    camera.position.lerp(camPos, 0.1); camera.lookAt(leadPos.clone().add(tan.multiplyScalar(20)));
+                } else if (STATE.cameraMode === 1) { camera.position.lerp(new THREE.Vector3(0, 120, 120), 0.05); camera.lookAt(leadPos); }
+                else { const t = leader.currentT % 1.0; const tan = STATE.trackCurve.getTangentAt(t).normalize(); const side = new THREE.Vector3(-tan.z, 0, tan.x).normalize().multiplyScalar(10); camera.position.copy(leadPos.clone().add(side).add(new THREE.Vector3(0, 5, 0))); camera.lookAt(leadPos); }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+            STATE.gates.forEach(g => g.update(delta));
+            if (STATE.isRacing) {
+                if (STATE.raceStarted) {
+                    let finishedCount = 0;
+                    STATE.horses.forEach(h => {
+                        if (!h.finished) { h.update(delta); if (h.finished && !STATE.winner) STATE.winner = h; } else { finishedCount++; }
+                    });
+                    updateCommentary(time);
+                    if (time - lastRankUpdate > 0.5) {
+                        updateRankingUI();
+                        lastRankUpdate = time;
+                    }
+                    updateCommentary(time);
+                    if (STATE.winner && STATE.isRacing && finishedCount === STATE.horses.length) { finishRace(STATE.winner); STATE.winner = null; }
+                } else {
+                    STATE.horses.forEach(h => { h.body.position.y = 2 + Math.sin(Date.now() * 0.005 + h.id) * 0.02; });
+                }
+            } else {
+                STATE.horses.forEach(h => { h.body.position.y = 2 + Math.sin(Date.now() * 0.003 + h.id) * 0.05; });
+            }
+            updateCamera(); renderer.render(scene, camera);
+        }
+
+        initGame(); animate();
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    </script>
+</body>
+
+</html>

@@ -673,7 +673,7 @@
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                 const p1 = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
                 const p2 = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
-                vertices.push(p1.x, 0.2, p1.z, p2.x, 0.2, p2.z); // Lifted to 0.2
+                vertices.push(p1.x, 0.5, p1.z, p2.x, 0.5, p2.z); // Raised higher to be clearly visible
                 const v = i / 10;
                 uvs.push(0, v, 1, v);
             });
@@ -708,15 +708,19 @@
                 sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
             }
             const trackTex = new THREE.CanvasTexture(sandCanvas);
+            trackTex.needsUpdate = true;
             trackTex.wrapS = THREE.RepeatWrapping;
             trackTex.wrapT = THREE.RepeatWrapping;
-            trackTex.repeat.set(1, 1);
+            trackTex.repeat.set(4, 4);
 
             const trackMesh = new THREE.Mesh(trackGeo, new THREE.MeshStandardMaterial({
-                map: trackTex, color: 0xffffff, roughness: 1.0,
-                polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
+                // map: trackTex,  // Temporarily disabled to debug
+                color: 0x5C3317, // Dark brown - should be clearly visible
+                roughness: 1.0,
+                side: THREE.DoubleSide
             }));
             trackMesh.receiveShadow = true;
+            trackMesh.castShadow = true;
             scene.add(trackMesh);
 
             // Objects

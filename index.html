@@ -765,9 +765,11 @@
             grassCanvas.width = 512; grassCanvas.height = 512;
             const ctx = grassCanvas.getContext('2d');
             ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, 0, 512, 512); // Green Grass
-            for (let i = 0; i < 40000; i++) {
+            // Optimized grass texture generation
+            for (let i = 0; i < 5000; i++) {
                 ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
-                ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+                const size = Math.random() * 3 + 1;
+                ctx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
             }
             const groundMat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(grassCanvas), roughness: 1.0 });
             const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -777,11 +779,11 @@
 
             // Track Surface (Corrected UVs & Texture)
             const trackWidth = CONFIG.laneWidth * 6;
-            const points = STATE.trackCurve.getSpacedPoints(400);
+            const points = STATE.trackCurve.getSpacedPoints(200); // Reduced from 400 for performance
             const vertices = [], uvs = [], indices = [];
 
             points.forEach((p, i) => {
-                const tangent = STATE.trackCurve.getTangentAt(i / 400).normalize();
+                const tangent = STATE.trackCurve.getTangentAt(i / 200).normalize();
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                 const p1 = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
                 const p2 = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
@@ -806,8 +808,8 @@
             // Dark brown dirt base
             sCtx.fillStyle = '#6B4423';
             sCtx.fillRect(0, 0, 512, 512);
-            // Add dirt texture with varied browns
-            for (let i = 0; i < 100000; i++) {
+            // Add dirt texture with varied browns - REDUCED LOOP COUNT
+            for (let i = 0; i < 10000; i++) {
                 const rand = Math.random();
                 if (rand < 0.4) {
                     sCtx.fillStyle = '#8B5A3C'; // Lighter brown
@@ -816,7 +818,7 @@
                 } else {
                     sCtx.fillStyle = '#A0522D'; // Sienna
                 }
-                const size = Math.random() < 0.8 ? 1 : 2;
+                const size = Math.random() < 0.8 ? 2 : 4; // Larger particles
                 sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
             }
             const trackTex = new THREE.CanvasTexture(sandCanvas);
@@ -837,15 +839,20 @@
 
             // Objects
             const innerRailPoints = [], outerRailPoints = [];
+            // Re-use geometries and materials for performance
+            const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.2);
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+
             points.forEach((p, i) => {
-                const tangent = STATE.trackCurve.getTangentAt(i / 400).normalize();
+                const tangent = STATE.trackCurve.getTangentAt(i / 200).normalize();
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                // Add poles less frequently
                 if (i % 5 === 0) {
-                    const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.2);
-                    const poleMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
                     const posIn = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2 * 1.05));
                     const poleIn = new THREE.Mesh(poleGeo, poleMat); poleIn.position.set(posIn.x, 0.6, posIn.z);
                     scene.add(poleIn);
+
                     const posOut = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2 * 1.05));
                     const poleOut = new THREE.Mesh(poleGeo, poleMat); poleOut.position.set(posOut.x, 0.6, posOut.z);
                     scene.add(poleOut);
@@ -990,6 +997,7 @@
 
             activateSkill() {
                 if (this.skillTriggered) return;
+                if (STATE.winner) return; // No skills after winner decided
                 this.skillTriggered = true; this.skillActive = true; this.skillTimer = 3.0;
                 showCutIn(this.name, this.skillName, this.icon);
                 announce(`${this.name}、${this.skillName} 発動！`);
@@ -1098,6 +1106,18 @@
             setTimeout(() => el.classList.remove('active'), 1500);
         }
 
+        function announceWinner(winner) {
+            const winPhrases = [
+                `１着、${winner.name}！ 見事な勝利です！`,
+                `勝ったのは ${winner.name}！ 圧倒的な強さを見せつけました！`,
+                `${winner.name}、ゴールイン！ 素晴らしい走りでした！`,
+                `大歓声の中、${winner.name} が先頭でゴールを駆け抜けました！`
+            ];
+            const msg = winPhrases[Math.floor(Math.random() * winPhrases.length)];
+            announce(msg);
+            STATE.winnerAnnounced = true;
+        }
+
         function initGame() {
             document.getElementById('progress-bar').style.width = '80%';
             HORSE_DATA.forEach((data, index) => {
@@ -1148,6 +1168,7 @@
             document.getElementById('rank-panel').classList.remove('hidden');
             STATE.horses.forEach(h => { h.reset(); h.speed = 0; });
             STATE.gates.forEach(g => g.reset());
+            STATE.winnerAnnounced = false; // Reset winner announcement flag
             STATE.cameraMode = 1; updateCamera(0);
 
             SoundManager.playFanfare();
@@ -1193,7 +1214,7 @@
             STATE.isRacing = false; STATE.raceStarted = false;
             const win = (winner.id === STATE.selectedHorse);
             document.getElementById('rank-panel').classList.add('hidden');
-            announce(`勝ったのは ${winner.name}！！`);
+            // announce(`勝ったのは ${winner.name}！！`); // Removed, handled by announceWinner immediately upon finish
             SoundManager.playAtmosphere(false);
 
             if (win) SoundManager.playWin();
@@ -1304,18 +1325,20 @@
                                 // Assign finish rank
                                 const finishedHorses = STATE.horses.filter(horse => horse.finished);
                                 h.finishRank = finishedHorses.length;
-                                if (!STATE.winner) STATE.winner = h;
+                                if (!STATE.winner) {
+                                    STATE.winner = h;
+                                    if (!STATE.winnerAnnounced) announceWinner(h);
+                                }
                             }
                         } else {
                             finishedCount++;
                         }
                     });
-                    updateCommentary(time);
+                    if (!STATE.winner) updateCommentary(time);
                     if (time - lastRankUpdate > 0.5) {
                         updateRankingUI();
                         lastRankUpdate = time;
                     }
-                    updateCommentary(time);
                     if (STATE.winner && STATE.isRacing && finishedCount === STATE.horses.length) { finishRace(STATE.winner); STATE.winner = null; }
                 } else {
                     STATE.horses.forEach(h => { h.body.position.y = 2 + Math.sin(Date.now() * 0.005 + h.id) * 0.02; });

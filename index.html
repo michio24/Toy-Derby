@@ -606,7 +606,8 @@
             winner: null,
             weather: null,
             trackCondition: null,
-            rainParticles: null
+            rainParticles: null,
+            isWinningRun: false
         };
 
         // --- Weather System ---
@@ -1095,6 +1096,97 @@
 
         const particleManager = new ParticleManager(scene);
 
+        // --- Confetti System ---
+        class ConfettiManager {
+            constructor(scene, count = 1000) {
+                this.count = count;
+                this.scene = scene;
+                this.active = false;
+
+                const geometry = new THREE.PlaneGeometry(0.3, 0.3);
+                const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+                this.mesh = new THREE.InstancedMesh(geometry, material, count);
+                this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+                this.dummy = new THREE.Object3D();
+                this.particles = [];
+
+                const colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFFFFF];
+
+                for (let i = 0; i < count; i++) {
+                    this.particles.push({
+                        pos: new THREE.Vector3(),
+                        vel: new THREE.Vector3(),
+                        rot: new THREE.Vector3(),
+                        rotVel: new THREE.Vector3(),
+                        color: new THREE.Color(colors[Math.floor(Math.random() * colors.length)])
+                    });
+                    this.mesh.setColorAt(i, this.particles[i].color);
+                }
+
+                this.mesh.visible = false;
+                scene.add(this.mesh);
+            }
+
+            start(centerPos) {
+                this.active = true;
+                this.mesh.visible = true;
+                this.particles.forEach((p, i) => {
+                    // Spawn area around the winner
+                    p.pos.set(
+                        centerPos.x + (Math.random() - 0.5) * 40,
+                        centerPos.y + 20 + Math.random() * 20,
+                        centerPos.z + (Math.random() - 0.5) * 40
+                    );
+                    p.vel.set(
+                        (Math.random() - 0.5) * 0.5,
+                        -(Math.random() * 0.2 + 0.1),
+                        (Math.random() - 0.5) * 0.5
+                    );
+                    p.rot.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                    p.rotVel.set(Math.random() * 0.2, Math.random() * 0.2, Math.random() * 0.2);
+
+                    this.updateParticle(i, p);
+                });
+                this.mesh.instanceMatrix.needsUpdate = true;
+            }
+
+            stop() {
+                this.active = false;
+                this.mesh.visible = false;
+            }
+
+            updateParticle(i, p) {
+                this.dummy.position.copy(p.pos);
+                this.dummy.rotation.set(p.rot.x, p.rot.y, p.rot.z);
+                this.dummy.updateMatrix();
+                this.mesh.setMatrixAt(i, this.dummy.matrix);
+            }
+
+            update(delta) {
+                if (!this.active) return;
+
+                this.particles.forEach((p, i) => {
+                    p.pos.add(p.vel);
+                    p.rot.x += p.rotVel.x;
+                    p.rot.y += p.rotVel.y;
+                    p.rot.z += p.rotVel.z;
+
+                    // Swing effect
+                    p.pos.x += Math.sin(Date.now() * 0.001 + i) * 0.02;
+
+                    // Reset if too low
+                    if (p.pos.y < 0) {
+                        p.pos.y = 40;
+                    }
+
+                    this.updateParticle(i, p);
+                });
+                this.mesh.instanceMatrix.needsUpdate = true;
+            }
+        }
+        const confettiManager = new ConfettiManager(scene);
+
         // --- Horse Class ---
         class Horse {
             constructor(id, data) {
@@ -1167,7 +1259,7 @@
             }
 
             update(delta) {
-                if (this.finished) { this.legs.forEach(l => l.rotation.x = 0); return; }
+                if (this.finished && !STATE.isWinningRun) { this.legs.forEach(l => l.rotation.x = 0); return; }
                 if (this.speed < this.baseSpeed) this.speed += delta * 0.05;
 
                 const progress = this.currentT;
@@ -1425,11 +1517,13 @@
         }
 
         function finishRace(winner) {
-            STATE.isRacing = false; STATE.raceStarted = false;
+            STATE.isRacing = false; STATE.raceStarted = false; STATE.isWinningRun = true;
             const win = (winner.id === STATE.selectedHorse);
             document.getElementById('rank-panel').classList.add('hidden');
-            // announce(`勝ったのは ${winner.name}！！`); // Removed, handled by announceWinner immediately upon finish
-            SoundManager.playAtmosphere(false);
+
+            // Winning Run Setup
+            confettiManager.start(winner.mesh.position);
+            updateCamera(0); // Trigger camera update to switch to winning mode immediately
 
             if (win) SoundManager.playWin();
 
@@ -1444,10 +1538,13 @@
                 } else {
                     msg.innerHTML = `Winner: <span class="text-gray-800 font-bold">${winner.name}</span>`; pay.innerText = "0 G";
                 }
-            }, 2000);
+            }, 3000);
         }
 
         function resetGame() {
+            STATE.isWinningRun = false;
+            STATE.winner = null;
+            confettiManager.stop();
             document.getElementById('result-modal').classList.add('hidden', 'scale-95', 'opacity-0');
             document.getElementById('betting-panel').classList.remove('translate-y-full', 'opacity-0');
             document.getElementById('camera-btn').classList.add('hidden');
@@ -1484,7 +1581,19 @@
             let leader = STATE.horses[0]; STATE.horses.forEach(h => { if (h.currentT > leader.currentT) leader = h; });
             const leadPos = leader.mesh.position.clone();
 
-            if (!STATE.isRacing) {
+            if (STATE.isWinningRun && STATE.winner) {
+                // Winning Run Camera - dynamic orbit around winner
+                const winner = STATE.winner;
+                const leadPos = winner.mesh.position.clone();
+                const t = Date.now() * 0.0005;
+                const orbitRadius = 15;
+                const camX = leadPos.x + Math.cos(t) * orbitRadius;
+                const camZ = leadPos.z + Math.sin(t) * orbitRadius;
+
+                camera.position.lerp(new THREE.Vector3(camX, leadPos.y + 5, camZ), 0.05);
+                camera.lookAt(leadPos.clone().add(new THREE.Vector3(0, 2, 0)));
+            }
+            else if (!STATE.isRacing) {
                 // Animated camera tour around the track during horse selection
                 const t = (Date.now() * 0.00008) % 1.0; // Very slow rotation for elegant presentation
                 const tourPoint = STATE.trackCurve.getPointAt(t);
@@ -1529,6 +1638,28 @@
             const delta = clock.getDelta();
             const time = clock.getElapsedTime();
             STATE.gates.forEach(g => g.update(delta));
+
+            if (STATE.isWinningRun && STATE.winner) {
+                // Slow forward movement for winner
+                const winner = STATE.winner;
+                winner.speed = 0.01; // Slow trot
+                winner.update(delta); // Animation
+
+                // Keep other horses idle
+                STATE.horses.forEach(h => {
+                    if (h !== winner) {
+                        h.body.position.y = 2 + Math.sin(Date.now() * 0.003 + h.id) * 0.05;
+                        h.legs.forEach(l => l.rotation.x = 0); // Ensure others stop running
+                    }
+                });
+
+                confettiManager.update(delta);
+                particleManager.update(delta); // Keep existing particles alive/fading
+                updateCamera(time);
+                renderer.render(scene, camera);
+                return;
+            }
+
             if (STATE.isRacing) {
                 particleManager.update(delta); // Update particles
                 if (STATE.raceStarted) {
@@ -1554,7 +1685,7 @@
                         updateRankingUI();
                         lastRankUpdate = time;
                     }
-                    if (STATE.winner && STATE.isRacing && finishedCount === STATE.horses.length) { finishRace(STATE.winner); STATE.winner = null; }
+                    if (STATE.winner && STATE.isRacing && finishedCount === STATE.horses.length) { finishRace(STATE.winner); }
                 } else {
                     STATE.horses.forEach(h => { h.body.position.y = 2 + Math.sin(Date.now() * 0.005 + h.id) * 0.02; });
                 }

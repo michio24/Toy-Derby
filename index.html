@@ -948,6 +948,153 @@
             }
         }
 
+        // --- Particle System ---
+        const ParticleType = { DUST: 0, SPLASH: 1 };
+
+        class ParticleManager {
+            constructor(scene, maxParticles = 3000) {
+                this.maxParticles = maxParticles;
+                this.particleCount = 0;
+                this.scene = scene;
+
+                // Geometry setup
+                this.geometry = new THREE.BufferGeometry();
+                this.positions = new Float32Array(maxParticles * 3);
+                this.colors = new Float32Array(maxParticles * 3);
+                this.sizes = new Float32Array(maxParticles);
+
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(this.sizes, 1));
+
+                // Material - Radial gradient circle
+                const canvas = document.createElement('canvas');
+                canvas.width = 32; canvas.height = 32;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+                grad.addColorStop(0, 'rgba(255,255,255,1)');
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 32, 32);
+
+                this.material = new THREE.PointsMaterial({
+                    size: 1,
+                    vertexColors: true,
+                    map: new THREE.CanvasTexture(canvas),
+                    transparent: true,
+                    opacity: 0.6,
+                    depthWrite: false,
+                    blending: THREE.NoBlending // Normal mixing
+                });
+
+                this.mesh = new THREE.Points(this.geometry, this.material);
+                this.mesh.frustumCulled = false;
+                scene.add(this.mesh);
+
+                // Particle data
+                this.particles = [];
+                for (let i = 0; i < maxParticles; i++) {
+                    this.particles.push({
+                        active: false,
+                        life: 0,
+                        maxLife: 1.0,
+                        velocity: new THREE.Vector3(),
+                        type: ParticleType.DUST
+                    });
+                    // Move initial points out of view
+                    this.positions[i * 3 + 1] = -1000;
+                }
+            }
+
+            spawn(pos, type) {
+                // Find an available particle (simple linear search for now, could be optimized)
+                let index = -1;
+                for (let i = 0; i < this.maxParticles; i++) {
+                    if (!this.particles[i].active) {
+                        index = i;
+                        break;
+                    }
+                }
+
+                if (index === -1) return; // Pool full
+
+                const p = this.particles[index];
+                p.active = true;
+                p.type = type;
+
+                // Set initial position
+                this.positions[index * 3] = pos.x;
+                this.positions[index * 3 + 1] = pos.y;
+                this.positions[index * 3 + 2] = pos.z;
+
+                if (type === ParticleType.DUST) {
+                    p.life = 0.5 + Math.random() * 0.5;
+                    p.maxLife = p.life;
+                    p.velocity.set(
+                        (Math.random() - 0.5) * 4,
+                        Math.random() * 2 + 1,
+                        (Math.random() - 0.5) * 4
+                    );
+                    // Dusty Brown
+                    this.colors[index * 3] = 0.6;
+                    this.colors[index * 3 + 1] = 0.5;
+                    this.colors[index * 3 + 2] = 0.4;
+                    this.sizes[index] = Math.random() * 4 + 2;
+                } else { // SPLASH
+                    p.life = 0.4 + Math.random() * 0.3;
+                    p.maxLife = p.life;
+                    p.velocity.set(
+                        (Math.random() - 0.5) * 6,
+                        Math.random() * 5 + 3,
+                        (Math.random() - 0.5) * 6
+                    );
+                    // Watery Blue/White
+                    this.colors[index * 3] = 0.8;
+                    this.colors[index * 3 + 1] = 0.9;
+                    this.colors[index * 3 + 2] = 1.0;
+                    this.sizes[index] = Math.random() * 2 + 1;
+                }
+            }
+
+            update(delta) {
+                let activeCount = 0;
+                for (let i = 0; i < this.maxParticles; i++) {
+                    const p = this.particles[i];
+                    if (!p.active) continue;
+
+                    p.life -= delta;
+                    if (p.life <= 0) {
+                        p.active = false;
+                        this.positions[i * 3 + 1] = -1000; // Hide
+                        this.sizes[i] = 0;
+                        continue;
+                    }
+
+                    // Physics
+                    this.positions[i * 3] += p.velocity.x * delta * 5;
+                    this.positions[i * 3 + 1] += p.velocity.y * delta * 5;
+                    this.positions[i * 3 + 2] += p.velocity.z * delta * 5;
+
+                    if (p.type === ParticleType.DUST) {
+                        p.velocity.y *= 0.95; // Slow rise
+                        // Fade size
+                        const r = p.life / p.maxLife;
+                        this.sizes[i] = (1 - r) * 5 + 2; // Grow as it fades
+                    } else { // SPLASH
+                        p.velocity.y -= delta * 25; // Simple Gravity
+                        const r = p.life / p.maxLife;
+                        this.sizes[i] = r * 3; // Shrink
+                    }
+                }
+
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.attributes.color.needsUpdate = true;
+                this.geometry.attributes.size.needsUpdate = true;
+            }
+        }
+
+        const particleManager = new ParticleManager(scene);
+
         // --- Horse Class ---
         class Horse {
             constructor(id, data) {
@@ -1059,6 +1206,21 @@
                 this.legs[1].rotation.x = Math.sin(animT * runFreq + Math.PI) * 0.8;
                 this.legs[2].rotation.x = Math.sin(animT * runFreq + Math.PI / 2) * 0.8;
                 this.legs[3].rotation.x = Math.sin(animT * runFreq - Math.PI / 2) * 0.8;
+
+                // Particle Emission
+                if (this.speed > 0.02) {
+                    const chance = this.speed * 5; // Higher speed = more particles
+                    if (Math.random() < chance) {
+                        const type = (STATE.weather && STATE.weather.rain) ? ParticleType.SPLASH : ParticleType.DUST;
+                        // Emit from base of horse approximate pos
+                        const emitPos = this.mesh.position.clone();
+                        emitPos.y = 0.5; // Near ground
+                        // Add some randomness around the feet area
+                        emitPos.x += (Math.random() - 0.5) * 1.0;
+                        emitPos.z += (Math.random() - 0.5) * 1.0;
+                        particleManager.spawn(emitPos, type);
+                    }
+                }
             }
         }
 
@@ -1368,6 +1530,7 @@
             const time = clock.getElapsedTime();
             STATE.gates.forEach(g => g.update(delta));
             if (STATE.isRacing) {
+                particleManager.update(delta); // Update particles
                 if (STATE.raceStarted) {
                     let finishedCount = 0;
                     STATE.horses.forEach(h => {

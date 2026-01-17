@@ -7,14 +7,162 @@
     <title>Toy Derby: Grand Prix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Zen Kaku Gothic New"', 'sans-serif'],
+                        display: ['"Orbitron"', 'sans-serif'],
+                        tech: ['"Chakra Petch"', 'sans-serif'],
+                    },
+                    colors: {
+                        gold: { 400: '#FBBF24', 500: '#F59E0B', 600: '#D97706', glow: '#FFD700' },
+                        glass: {
+                            light: 'rgba(255, 255, 255, 0.1)',
+                            dark: 'rgba(0, 0, 0, 0.6)',
+                            border: 'rgba(255, 255, 255, 0.2)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #87CEEB;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            font-family: 'Zen Kaku Gothic New', sans-serif;
+            color: #e2e8f0;
         }
 
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-header {
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            padding-bottom: 2rem;
+        }
+
+        /* Premium Horse Card */
+        .horse-card {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .horse-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.05) 45%, transparent 50%);
+            z-index: 1;
+            transform: translateX(-100%);
+            transition: transform 0.6s;
+        }
+
+        .horse-card:hover::before {
+            transform: translateX(100%);
+        }
+
+        .horse-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: rgba(251, 191, 36, 0.5);
+            box-shadow: 0 10px 25px -5px rgba(251, 191, 36, 0.15);
+        }
+
+        .horse-card.selected {
+            border: 2px solid #F59E0B;
+            background: linear-gradient(145deg, rgba(50, 40, 20, 0.95), rgba(30, 25, 10, 0.95));
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .horse-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-bottom-left-radius: 8px;
+            box-shadow: -2px 2px 5px rgba(0, 0, 0, 0.3);
+            z-index: 5;
+        }
+
+        .skill-badge {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 0.65rem;
+            text-align: center;
+            padding: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .horse-card.selected .skill-badge {
+            color: #FCD34D;
+            background: rgba(40, 20, 0, 0.8);
+        }
+
+        /* Neon Button */
+        .btn-neon {
+            background: linear-gradient(90deg, #F59E0B, #ea580c);
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.05em;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-neon:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+            filter: brightness(1.2);
+        }
+
+        .btn-neon:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn-neon:disabled {
+            background: #334155;
+            color: #94a3b8;
+            cursor: not-allowed;
+            border-color: transparent;
+        }
+
+        /* Game UI Layout */
         #game-ui {
             position: absolute;
             top: 0;
@@ -32,59 +180,18 @@
             pointer-events: auto;
         }
 
-        .horse-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            transition: all 0.2s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .horse-card:active {
-            transform: scale(0.95);
-        }
-
-        .horse-card.selected {
-            border: 3px solid #F59E0B;
-            background: #FFFBEB;
-            transform: translateY(-5px);
-        }
-
-        .horse-badge {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: #F59E0B;
-            color: white;
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            border-bottom-left-radius: 8px;
-        }
-
-        .skill-badge {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            font-size: 0.6rem;
-            text-align: center;
-            padding: 2px;
-        }
-
         #betting-panel {
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+            background: transparent;
         }
 
+        /* Loader */
         #loader {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #1a202c;
+            background: #0f172a;
             color: white;
             display: flex;
             flex-direction: column;
@@ -95,36 +202,47 @@
         }
 
         .loading-bar {
-            width: 200px;
-            height: 4px;
-            background: #333;
-            margin-top: 10px;
-            border-radius: 2px;
+            width: 240px;
+            height: 6px;
+            background: #1e293b;
+            margin-top: 15px;
+            border-radius: 3px;
             overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
         }
 
         .loading-progress {
             height: 100%;
-            background: #F59E0B;
+            background: linear-gradient(90deg, #F59E0B, #FCD34D);
             width: 0%;
             transition: width 0.2s;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
         }
 
-        /* Cut-in Animation */
+        /* Rank Panel */
+        #rank-panel ul li {
+            font-family: 'Chakra Petch', sans-serif;
+            transition: all 0.2s;
+        }
+
+        /* Cut-in */
         #cut-in-overlay {
             position: absolute;
-            top: 30%;
+            top: 25%;
             left: -100%;
             width: 100%;
-            height: 200px;
+            height: 240px;
             display: flex;
             align-items: center;
-            background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(255, 165, 0, 0.9) 20%, rgba(255, 165, 0, 0.9) 80%, rgba(0, 0, 0, 0) 100%);
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(245, 158, 11, 0.8) 15%, rgba(234, 88, 12, 0.9) 50%, rgba(245, 158, 11, 0.8) 85%, rgba(0, 0, 0, 0) 100%);
             z-index: 40;
-            transform: skewX(-20deg);
-            transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: skewX(-15deg);
+            transition: left 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
             pointer-events: none;
             opacity: 0;
+            backdrop-filter: blur(4px);
+            border-top: 2px solid rgba(255, 255, 255, 0.4);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.4);
         }
 
         #cut-in-overlay.active {
@@ -133,27 +251,84 @@
         }
 
         .cut-in-content {
-            transform: skewX(20deg);
+            transform: skewX(15deg);
             display: flex;
             align-items: center;
             width: 100%;
             justify-content: center;
             color: white;
-            text-shadow: 2px 2px 0 #000;
+            text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
         }
 
         .cut-in-text {
-            font-size: 3rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3.5rem;
             font-weight: 900;
             font-style: italic;
-            margin-left: 20px;
+            margin-left: 30px;
             text-transform: uppercase;
+            background: linear-gradient(to bottom, #fff, #FCD34D);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.5));
         }
 
         .cut-in-horse-name {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             margin-bottom: -10px;
-            opacity: 0.9;
+            opacity: 0.95;
+            letter-spacing: 0.1em;
+        }
+
+        /* Commentary Box */
+        #commentary-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            width: 90%;
+            max-width: 800px;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.8) 20%, rgba(0, 0, 0, 0.8) 80%, rgba(0, 0, 0, 0));
+            padding: 1rem 3rem;
+            border-radius: 0;
+            text-align: center;
+            color: #4ade80;
+            /* Neon Green */
+            font-family: 'Zen Kaku Gothic New', sans-serif;
+            font-weight: 700;
+            font-size: 1.4rem;
+            opacity: 0;
+            transition: all 0.3s;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            pointer-events: none;
+            border-top: 1px solid rgba(74, 222, 128, 0.3);
+            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
+        }
+
+        #commentary-box.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Countdown */
+        .scale-in {
+            animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes scaleIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            60% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .speed-lines {
@@ -161,6 +336,13 @@
             inset: 0;
             background: repeating-linear-gradient(90deg, transparent 0, transparent 20px, rgba(255, 255, 255, 0.2) 21px, transparent 22px);
             animation: speedLines 0.1s linear infinite;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .speed-lines.active {
+            opacity: 0.3;
         }
 
         @keyframes speedLines {
@@ -318,61 +500,68 @@
         </div>
 
         <!-- Header -->
-        <div class="p-4 flex justify-between items-start">
-            <div class="bg-white/90 p-3 rounded-xl shadow-lg backdrop-blur border-l-4 border-yellow-500">
-                <h1 class="text-xl font-extrabold text-gray-800 tracking-tight">🏆 TOY DERBY <span
-                        class="text-yellow-600 text-sm">GP</span></h1>
-                <div class="flex items-center gap-2 mt-1">
-                    <div
-                        class="w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white font-bold">
-                        G</div>
-                    <span id="wallet-display" class="font-bold text-gray-700 text-lg">1000</span>
+        <div class="p-6 flex justify-between items-start glass-header w-full absolute top-0 z-10 pointer-events-none">
+            <div class="glass-panel px-6 py-3 rounded-lg flex items-center gap-4 transform skew-x-[-10deg]">
+                <h1 class="text-2xl font-tech font-bold text-white italic tracking-wider skew-x-[10deg]">
+                    TOY DERBY <span class="text-gold-500 text-sm">GP</span>
+                </h1>
+                <div class="h-6 w-px bg-white/20 skew-x-[10deg]"></div>
+                <div class="flex items-center gap-2 skew-x-[10deg]">
+                    <div class="text-gold-400 text-xs">CREDITS</div>
+                    <span id="wallet-display"
+                        class="font-display font-bold text-gold-glow text-2xl tracking-widest text-shadow-glow">1000</span>
+                    <span class="text-xs text-gray-400">G</span>
                 </div>
             </div>
-            <div id="camera-btn"
-                class="interactive hidden bg-white/30 hover:bg-white/50 p-2 rounded-full cursor-pointer transition backdrop-blur"
+
+            <button id="camera-btn"
+                class="interactive hidden btn-neon rounded-lg w-12 h-12 flex items-center justify-center text-xl shadow-lg"
                 onclick="toggleCamera()">
-                📷
-            </div>
+                �
+            </button>
         </div>
 
         <!-- Center: Results -->
-        <div id="center-panel" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        <div id="center-panel" class="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
             <div id="result-modal"
-                class="hidden interactive bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center transform scale-95 opacity-0 transition-all duration-300">
-                <div class="text-5xl mb-2">🏁</div>
-                <h2 class="text-3xl font-bold mb-1 text-gray-800">FINISH!</h2>
-                <div id="result-message" class="text-lg mb-4 font-medium text-gray-600">...</div>
-                <div class="bg-gray-100 rounded-lg p-3 mb-6">
-                    <div class="text-xs text-gray-500 uppercase font-bold">Payout</div>
-                    <div id="payout-display" class="text-3xl font-bold text-yellow-600">0 G</div>
+                class="hidden interactive glass-panel border border-gold-500/30 p-8 rounded-xl shadow-xl max-w-sm w-full text-center transform scale-95 opacity-0 transition-all duration-300">
+                <div class="text-6xl mb-4 filter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">🏁</div>
+                <h2 class="text-4xl font-display font-bold mb-2 text-white italic tracking-tighter">FINISH!</h2>
+                <div id="result-message" class="text-lg mb-6 font-tech text-gray-300 tracking-wide">...</div>
+
+                <div class="bg-black/40 rounded-lg p-4 mb-8 border border-white/5">
+                    <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">TOTAL PAYOUT</div>
+                    <div id="payout-display" class="text-5xl font-display font-bold text-gold-glow drop-shadow-md">0 G
+                    </div>
                 </div>
+
                 <button onclick="resetGame()"
-                    class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition transform hover:scale-[1.02]">
-                    Next Race ➜
+                    class="w-full btn-neon py-4 text-xl font-bold rounded shadow-lg transition transform hover:scale-[1.02] tracking-wider">
+                    NEXT RACE
                 </button>
             </div>
         </div>
 
         <!-- Footer: Betting -->
         <div id="betting-panel"
-            class="interactive p-4 pb-8 w-full transition-transform duration-500 ease-in-out transform translate-y-0">
-            <div class="max-w-5xl mx-auto">
-                <div class="flex justify-between items-end mb-4 px-2">
-                    <h3 class="text-white font-bold text-xl drop-shadow-md">出走馬を選択</h3>
-                    <div class="text-white/80 text-sm bg-black/30 px-3 py-1 rounded-full backdrop-blur">
-                        Bet: <span class="font-bold text-yellow-400">100 G</span>
+            class="interactive p-4 pb-10 w-full transition-transform duration-500 ease-in-out transform translate-y-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
+            <div class="max-w-6xl mx-auto">
+                <div class="flex justify-between items-end mb-4 px-4">
+                    <h3 class="text-white font-tech font-bold text-2xl tracking-widest border-l-4 border-gold-500 pl-3">
+                        SELECT HORSE</h3>
+                    <div class="glass-panel px-4 py-2 rounded text-sm text-gray-300 font-tech">
+                        BET AMOUNT: <span class="font-display font-bold text-gold-400 text-lg ml-2">100 G</span>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-5 gap-2 sm:gap-4" id="horse-selector">
+                <div class="grid grid-cols-5 gap-3 sm:gap-6" id="horse-selector">
                     <!-- Cards generated by JS -->
                 </div>
 
-                <div class="mt-6 flex justify-center">
+                <div class="mt-8 flex justify-center">
                     <button id="start-btn" onclick="startRace()" disabled
-                        class="bg-gray-300 text-gray-500 font-bold py-4 px-16 rounded-full text-xl shadow-xl transition-all transform scale-100 opacity-70 cursor-not-allowed tracking-wider">
-                        START
+                        class="btn-neon py-4 px-20 text-2xl font-bold rounded skew-x-[-15deg] shadow-[0_0_30px_rgba(245,158,11,0.3)] opacity-50 cursor-not-allowed transition-all">
+                        <span class="block skew-x-[15deg] tracking-[0.2em]">START RACE</span>
                     </button>
                 </div>
             </div>
@@ -1436,7 +1625,7 @@
             HORSE_DATA.forEach((data, index) => {
                 const el = document.createElement('div');
                 el.className = 'horse-card p-2 cursor-pointer flex flex-col items-center';
-                el.innerHTML = `<div class="horse-badge">x${(Math.random() * 2 + 1.5).toFixed(1)}</div><div class="w-10 h-10 rounded-full mb-1 border-2 border-gray-200 text-xl flex items-center justify-center" style="background:#${data.color.toString(16)}">${data.icon}</div><div class="text-xs font-bold text-gray-700 leading-tight text-center">${data.name}</div><div class="skill-badge">${data.skill}</div>`;
+                el.innerHTML = `<div class="horse-badge">x${(Math.random() * 2 + 1.5).toFixed(1)}</div><div class="w-10 h-10 rounded-full mb-1 border-2 border-white/20 text-xl flex items-center justify-center shadow-inner" style="background:#${data.color.toString(16)}">${data.icon}</div><div class="text-xs font-bold text-gray-200 leading-tight text-center font-tech tracking-wide">${data.name}</div><div class="skill-badge">${data.skill}</div>`;
                 el.dataset.odds = el.querySelector('.horse-badge').innerText.replace('x', '');
                 el.onclick = () => selectHorse(index, el);
                 selector.appendChild(el);
@@ -1457,9 +1646,9 @@
             el.classList.add('selected');
             const btn = document.getElementById('start-btn');
             btn.disabled = false;
-            btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed', 'opacity-70');
-            btn.classList.add('bg-gradient-to-r', 'from-yellow-500', 'to-orange-600', 'text-white', 'hover:scale-105');
-            btn.innerHTML = "START RACE!";
+            // Class manipulation removed as CSS handles :disabled state
+            btn.style.opacity = "1";
+            btn.innerHTML = '<span class="block skew-x-[15deg] tracking-[0.2em]">START RACE!</span>';
         }
 
         function startRace() {
@@ -1477,7 +1666,7 @@
             STATE.horses.forEach(h => { h.reset(); h.speed = 0; });
             STATE.gates.forEach(g => g.reset());
             STATE.winnerAnnounced = false; // Reset winner announcement flag
-            STATE.cameraMode = 1; updateCamera(0);
+            STATE.cameraMode = 3; updateCamera(0); // Auto Camera Start
 
             SoundManager.playFanfare();
             announce(`${randomWeather.icon} ${randomWeather.name}、馬場状態: ${randomWeather.trackCondition}`);

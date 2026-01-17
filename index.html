@@ -958,17 +958,52 @@
         function buildTrack() {
             // Ground
             const groundGeo = new THREE.PlaneGeometry(1000, 1000);
-            const grassCanvas = document.createElement('canvas');
-            grassCanvas.width = 512; grassCanvas.height = 512;
-            const ctx = grassCanvas.getContext('2d');
-            ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, 0, 512, 512); // Green Grass
-            // Optimized grass texture generation
-            for (let i = 0; i < 5000; i++) {
-                ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
-                const size = Math.random() * 3 + 1;
-                ctx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
-            }
-            const groundMat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(grassCanvas), roughness: 1.0 });
+            const textureLoader = new THREE.TextureLoader();
+            const grassTexture = textureLoader.load(
+                'textures/grass.png',
+                function (texture) {
+                    // 読み込み成功時のコールバック
+                    console.log('Grass texture loaded successfully');
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    texture.repeat.set(25, 25);
+                    texture.needsUpdate = true;
+                },
+                undefined,
+                function (error) {
+                    // エラー時のコールバック：フォールバックとしてCanvasで生成
+                    console.warn('Error loading grass texture, using procedural fallback:', error);
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 512; canvas.height = 512;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#4CAF50';
+                    ctx.fillRect(0, 0, 512, 512);
+
+                    for (let i = 0; i < 10000; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
+                        const size = Math.random() * 3 + 1;
+                        ctx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
+                    }
+
+                    const fallbackTexture = new THREE.CanvasTexture(canvas);
+                    fallbackTexture.wrapS = THREE.RepeatWrapping;
+                    fallbackTexture.wrapT = THREE.RepeatWrapping;
+                    fallbackTexture.repeat.set(25, 25);
+
+                    ground.material.map = fallbackTexture;
+                    ground.material.needsUpdate = true;
+                }
+            );
+            // 初期マテリアル（読み込み待ち中は仮の色か、テクスチャなし）
+            // grassTextureは非同期で設定されるため、Loading中は白などが表示される可能性があるが、
+            // Ground生成時にmapを指定しているので、ロード完了後に自動更新されるはず。
+            // ただしロード失敗時はonErrorが走るまでテクスチャが無い状態になる。
+
+            grassTexture.wrapS = THREE.RepeatWrapping;
+            grassTexture.wrapT = THREE.RepeatWrapping;
+            grassTexture.repeat.set(25, 25);
+            const groundMat = new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 1.0 });
             const ground = new THREE.Mesh(groundGeo, groundMat);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;

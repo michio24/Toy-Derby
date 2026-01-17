@@ -601,7 +601,9 @@
             raceStarted: false,
             horses: [],
             gates: [],
-            cameraMode: 0,
+            cameraMode: 0, // 0:Follow, 1:Top, 2:Side, 3:Auto(TV Style)
+            lastAutoSwitch: 0,
+            autoShotType: 0,
             trackCurve: null,
             winner: null,
             weather: null,
@@ -1553,7 +1555,12 @@
             SoundManager.playAtmosphere(false);
         }
 
-        function toggleCamera() { STATE.cameraMode = (STATE.cameraMode + 1) % 3; }
+        function toggleCamera() {
+            STATE.cameraMode = (STATE.cameraMode + 1) % 4;
+            const btn = document.getElementById('camera-btn');
+            const icons = ["📷", "🚁", "↔", "📺"];
+            btn.innerText = icons[STATE.cameraMode];
+        }
 
         function updateRankingUI() {
             // Sort: Finished horses by rank, then running horses by position
@@ -1610,22 +1617,72 @@
                 camera.lookAt(lookAt);
             }
             else {
-                if (STATE.cameraMode === 0) {
-                    // Follow camera - more distant view
-                    const t = leader.currentT % 1.0;
-                    const tan = STATE.trackCurve.getTangentAt(t).normalize();
-                    const camPos = leadPos.clone()
-                        .sub(tan.multiplyScalar(40)) // More distance behind
-                        .add(new THREE.Vector3(0, 25, 0)); // Higher up
+                // Race Camera Modes
+                const t = leader.currentT % 1.0;
+                const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                const normal = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+
+                if (STATE.cameraMode === 3) {
+                    // --- TV STYLE AUTO CAMERA ---
+                    const p = leader.currentT;
+
+                    // Auto Switching Logic (more frequent, random)
+                    if (time - STATE.lastAutoSwitch > 2.5) {
+                        let nextType;
+                        do {
+                            nextType = Math.floor(Math.random() * 4);
+                        } while (nextType === STATE.autoShotType); // Avoid same shot twice
+                        STATE.autoShotType = nextType;
+                        STATE.lastAutoSwitch = time;
+                    }
+
+                    let targetPos, targetLook;
+                    const lerpFactor = 0.05;
+
+                    if (p < 0.1) {
+                        // Start: High Rear Wide Shot
+                        targetPos = leadPos.clone().sub(tan.multiplyScalar(25)).add(new THREE.Vector3(0, 15, 0));
+                        targetLook = leadPos.clone().add(tan.multiplyScalar(20));
+                    } else if (p > 0.85) {
+                        // Final Stretch: Dynamic Front Zoom
+                        targetPos = leadPos.clone().add(tan.multiplyScalar(20)).sub(normal.multiplyScalar(5)).add(new THREE.Vector3(0, 4, 0));
+                        targetLook = leadPos.clone().sub(new THREE.Vector3(0, 1, 0));
+                    } else {
+                        // Mid Race Switching
+                        switch (STATE.autoShotType) {
+                            case 0: // Dynamic Side-Front
+                                targetPos = leadPos.clone().add(normal.multiplyScalar(12)).add(tan.multiplyScalar(8)).add(new THREE.Vector3(0, 6, 0));
+                                targetLook = leadPos.clone();
+                                break;
+                            case 1: // Low Rear Tracking
+                                targetPos = leadPos.clone().sub(tan.multiplyScalar(10)).add(new THREE.Vector3(0, 2, 0));
+                                targetLook = leadPos.clone().add(new THREE.Vector3(0, 1, 0));
+                                break;
+                            case 2: // High Bird's Eye
+                                targetPos = leadPos.clone().sub(tan.multiplyScalar(5)).add(new THREE.Vector3(0, 50, 0));
+                                targetLook = leadPos.clone();
+                                break;
+                            case 3: // Side Profile Long
+                                const sideDist = 25;
+                                targetPos = leadPos.clone().add(normal.multiplyScalar(sideDist)).add(new THREE.Vector3(0, 10, 0));
+                                targetLook = leadPos.clone();
+                                break;
+                        }
+                    }
+                    camera.position.lerp(targetPos, lerpFactor);
+                    camera.lookAt(targetLook);
+
+                } else if (STATE.cameraMode === 0) {
+                    // Follow camera
+                    const camPos = leadPos.clone().sub(tan.multiplyScalar(40)).add(new THREE.Vector3(0, 25, 0));
                     camera.position.lerp(camPos, 0.1);
                     camera.lookAt(leadPos.clone().add(tan.multiplyScalar(20)));
                 } else if (STATE.cameraMode === 1) {
+                    // Top camera
                     camera.position.lerp(new THREE.Vector3(0, 120, 120), 0.05);
                     camera.lookAt(leadPos);
-                }
-                else {
-                    const t = leader.currentT % 1.0;
-                    const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                } else {
+                    // Side camera
                     const side = new THREE.Vector3(-tan.z, 0, tan.x).normalize().multiplyScalar(10);
                     camera.position.copy(leadPos.clone().add(side).add(new THREE.Vector3(0, 5, 0)));
                     camera.lookAt(leadPos);

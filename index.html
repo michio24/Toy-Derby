@@ -1752,23 +1752,189 @@
             }
             // ... (createModel and reset methods remain unchanged, just skipped in this diff for brevity if they are not needing changes, but I need to be careful about line numbers. I will replace the whole block to be safe)
 
+            createAuraTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+
+                const gradient = ctx.createLinearGradient(0, 0, 0, 128);
+                gradient.addColorStop(0, 'rgba(255, 255, 200, 0)');
+                gradient.addColorStop(0.2, 'rgba(255, 220, 100, 0.5)');
+                gradient.addColorStop(0.5, 'rgba(255, 200, 0, 0.8)');
+                gradient.addColorStop(0.8, 'rgba(255, 150, 0, 0.5)');
+                gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 64, 128);
+
+                // Add vertical energy streaks
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const x = Math.random() * 64;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, 128);
+                    ctx.stroke();
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            }
+
             createModel(colorHex) {
                 this.mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.4, metalness: 0.1 });
-                const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), this.mat); body.position.y = 2; body.castShadow = true; this.body = body;
-                const neck = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.8), this.mat); neck.position.set(0, 2.8, 0.8); neck.rotation.x = -0.5; neck.castShadow = true;
-                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 1.2), this.mat); head.position.set(0, 3.6, 1.4); head.castShadow = true;
+                const maneColor = new THREE.Color(colorHex).multiplyScalar(0.7);
+                const maneMat = new THREE.MeshStandardMaterial({ color: maneColor, roughness: 0.9 });
+                const noseMat = new THREE.MeshStandardMaterial({ color: 0xffaaaa, roughness: 0.5 });
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const hoofMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+
+                // --- Cute "Chibi" Body ---
+                const bodyGeo = new THREE.SphereGeometry(0.7, 16, 16);
+                bodyGeo.scale(1, 1, 1.5);
+                const body = new THREE.Mesh(bodyGeo, this.mat);
+                body.position.y = 1.8;
+                body.castShadow = true;
+                this.body = body;
+
+                // --- Neck ---
+                const neckGeo = new THREE.CylinderGeometry(0.45, 0.6, 0.8, 16);
+                const neck = new THREE.Mesh(neckGeo, this.mat);
+                neck.position.set(0, 2.4, 0.8);
+                neck.rotation.x = -0.5;
+                neck.castShadow = true;
+
+                // --- Head Group ---
+                const headGroup = new THREE.Group();
+                headGroup.position.set(0, 3.0, 1.2);
+
+                // Main Head Sphere
+                const headGeo = new THREE.SphereGeometry(0.65, 16, 16);
+                const headMesh = new THREE.Mesh(headGeo, this.mat);
+                headMesh.castShadow = true;
+                headGroup.add(headMesh);
+
+                // Snout
+                const snoutGeo = new THREE.SphereGeometry(0.35, 16, 16);
+                snoutGeo.scale(1, 0.8, 1.2);
+                const snout = new THREE.Mesh(snoutGeo, this.mat);
+                snout.position.set(0, -0.15, 0.55);
+                snout.castShadow = true;
+                headGroup.add(snout);
+
+                // Ears
+                const earGeo = new THREE.ConeGeometry(0.18, 0.4, 8);
+                const earL = new THREE.Mesh(earGeo, this.mat);
+                earL.position.set(0.35, 0.55, 0);
+                earL.rotation.set(-0.2, 0, -0.3);
+                earL.castShadow = true;
+                const earR = new THREE.Mesh(earGeo, this.mat);
+                earR.position.set(-0.35, 0.55, 0);
+                earR.rotation.set(-0.2, 0, 0.3);
+                earR.castShadow = true;
+                headGroup.add(earL, earR);
+
+                // Eyes
+                const eyeGeo = new THREE.SphereGeometry(0.09, 8, 8);
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeL.position.set(0.28, 0.1, 0.5);
+                const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeR.position.set(-0.28, 0.1, 0.5);
+                headGroup.add(eyeL, eyeR);
+
+                // Forelock (Mane on head)
+                const forelockGeo = new THREE.SphereGeometry(0.25, 8, 8);
+                const forelock = new THREE.Mesh(forelockGeo, maneMat);
+                forelock.position.set(0, 0.55, 0.2);
+                headGroup.add(forelock);
+
+                // --- Mane (Neck) ---
+                const maneGeo = new THREE.SphereGeometry(0.25, 8, 8);
+                const mane1 = new THREE.Mesh(maneGeo, maneMat); mane1.position.set(0, 0.35, -0.35); neck.add(mane1);
+                const mane2 = new THREE.Mesh(maneGeo, maneMat); mane2.position.set(0, -0.05, -0.4); neck.add(mane2);
+                const mane3 = new THREE.Mesh(maneGeo, maneMat); mane3.position.set(0, -0.45, -0.4); neck.add(mane3);
+
+                // --- Legs ---
                 this.legs = [];
-                const legG = new THREE.CylinderGeometry(0.15, 0.1, 1.5);
-                [[-0.3, 0.6], [0.3, 0.6], [-0.3, -0.8], [0.3, -0.8]].forEach(p => {
-                    const g = new THREE.Group(); g.position.set(p[0], 1.5, p[1]);
-                    const l = new THREE.Mesh(legG, this.mat); l.position.y = -0.75; l.castShadow = true;
-                    g.add(l); this.mesh.add(g); this.legs.push(g);
+                const legGeo = new THREE.CylinderGeometry(0.18, 0.15, 1.0, 8);
+                const hoofGeo = new THREE.CylinderGeometry(0.19, 0.22, 0.2, 8);
+
+                // Position: x, z for legs
+                [[-0.35, 0.4], [0.35, 0.4], [-0.35, -0.5], [0.35, -0.5]].forEach(p => {
+                    const g = new THREE.Group();
+                    g.position.set(p[0], 1.2, p[1]);
+
+                    // Leg
+                    const l = new THREE.Mesh(legGeo, this.mat);
+                    l.position.y = -0.5; // Centers leg between 1.2 and 0.2
+                    l.castShadow = true;
+                    g.add(l);
+
+                    // Hoof
+                    const h = new THREE.Mesh(hoofGeo, hoofMat);
+                    h.position.y = -1.1; // Centers hoof at 0.1 (Base at 0.0)
+                    h.castShadow = true;
+                    g.add(h);
+
+                    this.mesh.add(g);
+                    this.legs.push(g);
                 });
-                const tail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), this.mat); tail.position.set(0, 2.2, -1.0); tail.rotation.x = 0.5; this.tail = tail;
-                this.mesh.add(body, neck, head, tail);
-                const auraGeo = new THREE.SphereGeometry(2.5, 16, 16);
-                const auraMat = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true, transparent: true, opacity: 0 });
-                this.aura = new THREE.Mesh(auraGeo, auraMat); this.aura.visible = false; this.mesh.add(this.aura);
+
+                // --- Tail ---
+                const tailGeo = new THREE.SphereGeometry(0.35, 8, 8);
+                tailGeo.scale(1, 1.5, 1);
+                const tail = new THREE.Mesh(tailGeo, maneMat);
+                tail.position.set(0, 2.2, -0.9);
+                tail.rotation.x = 0.6;
+                this.tail = tail;
+
+                // Assemble Mesh
+                this.mesh.add(body, neck, headGroup, tail);
+
+                // --- Luxurious Aura Effect ---
+                this.aura = new THREE.Group();
+                this.aura.visible = false;
+                this.mesh.add(this.aura);
+
+                // 1. Pillar of Light (Energy Column)
+                const pillarGeo = new THREE.CylinderGeometry(1.0, 1.0, 7, 32, 1, true);
+                const pillarTex = this.createAuraTexture();
+                const pillarMat = new THREE.MeshBasicMaterial({
+                    map: pillarTex,
+                    color: 0xffdd44,
+                    transparent: true,
+                    opacity: 0.8,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                this.auraPillar = new THREE.Mesh(pillarGeo, pillarMat);
+                this.auraPillar.position.y = 2.5;
+                this.aura.add(this.auraPillar);
+
+                // 2. Rotating Energy Rings
+                const ringGeo = new THREE.TorusGeometry(1.5, 0.05, 8, 64);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+
+                this.auraRing1 = new THREE.Mesh(ringGeo, ringMat);
+                this.auraRing1.rotation.x = Math.PI / 2;
+                this.auraRing1.position.y = 0.5;
+                this.aura.add(this.auraRing1);
+
+                this.auraRing2 = new THREE.Mesh(ringGeo, ringMat);
+                this.auraRing2.rotation.x = Math.PI / 2.2;
+                this.auraRing2.rotation.y = 0.2;
+                this.auraRing2.position.y = 4.0;
+                this.auraRing2.scale.setScalar(1.3);
+                this.aura.add(this.auraRing2);
+
+                // 3. Inner Core Glow
+                const coreGeo = new THREE.SphereGeometry(0.8, 16, 16);
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffee, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+                this.auraCore = new THREE.Mesh(coreGeo, coreMat);
+                this.auraCore.position.y = 2.0;
+                this.aura.add(this.auraCore);
             }
 
             reset() {
@@ -1780,7 +1946,12 @@
 
                 this.skillTriggered = false; this.skillActive = false; this.skillTimer = 0;
                 this.mat.emissive.setHex(0x000000); this.aura.visible = false;
-                this.legs.forEach(l => l.rotation.x = 0); this.updatePosition();
+
+                // Reset Anim
+                this.legs.forEach(l => l.rotation.x = 0);
+                if (this.body) this.body.position.y = 1.8;
+                if (this.tail) this.tail.rotation.x = 0.6;
+                this.updatePosition();
             }
 
             activateSkill() {
@@ -1790,7 +1961,10 @@
                 showCutIn(this.name, this.skillName, this.icon);
                 SoundManager.playSkill();
                 this.mat.emissive.setHex(0xaaaaaa); // Brighter emission
-                this.aura.visible = true; this.aura.material.opacity = 0.8;
+
+                this.aura.visible = true;
+                this.auraRing1.rotation.z = 0;
+                this.auraRing2.rotation.z = 0;
 
                 // --- NEW EFFECTS ---
                 // 1. Camera Shake
@@ -1844,8 +2018,25 @@
 
                 if (this.skillActive) {
                     this.skillTimer -= delta;
-                    this.aura.rotation.y += delta * 5;
-                    this.aura.scale.setScalar(1.0 + Math.sin(Date.now() * 0.01) * 0.2);
+
+                    const time = Date.now() * 0.005;
+                    // Rotate Rings
+                    this.auraRing1.rotation.z += delta * 4;
+                    this.auraRing1.scale.setScalar(1.0 + Math.sin(time * 3) * 0.1);
+
+                    this.auraRing2.rotation.z -= delta * 3;
+                    this.auraRing2.rotation.x = (Math.PI / 2.2) + Math.sin(time * 2) * 0.1;
+
+                    // Animate Pillar
+                    this.auraPillar.rotation.y -= delta * 2;
+                    this.auraPillar.scale.set(1.0 + Math.sin(time * 8) * 0.1, 1, 1.0 + Math.sin(time * 8) * 0.1);
+
+                    // Core Pulse
+                    this.auraCore.scale.setScalar(0.9 + Math.sin(time * 10) * 0.2);
+
+                    // Float
+                    this.aura.position.y = Math.sin(time * 3) * 0.2;
+
                     if (this.skillTimer <= 0) {
                         this.skillActive = false;
                         this.mat.emissive.setHex(0x000000);
@@ -1861,15 +2052,26 @@
 
                 if (this.currentT >= 1.0 && !this.finished) {
                     this.finished = true;
-                    this.body.position.y += 1;
+                    // Jump pose at finish
+                    this.body.position.y = 2.5;
                 }
 
                 const runFreq = 20 + (this.speed * 200); const animT = Date.now() * 0.001;
-                this.body.position.y = 2 + Math.sin(animT * runFreq) * 0.1;
+
+                // Animate Body (Bounce) - Only if not finished
+                if (!this.finished) {
+                    this.body.position.y = 1.8 + Math.sin(animT * runFreq) * 0.1;
+                }
+
                 this.legs[0].rotation.x = Math.sin(animT * runFreq) * 0.8;
                 this.legs[1].rotation.x = Math.sin(animT * runFreq + Math.PI) * 0.8;
                 this.legs[2].rotation.x = Math.sin(animT * runFreq + Math.PI / 2) * 0.8;
                 this.legs[3].rotation.x = Math.sin(animT * runFreq - Math.PI / 2) * 0.8;
+
+                // Tail Animation
+                if (this.tail) {
+                    this.tail.rotation.x = 0.6 + Math.sin(animT * runFreq * 0.5) * 0.2;
+                }
 
                 // Particle Emission
                 if (this.skillActive) {

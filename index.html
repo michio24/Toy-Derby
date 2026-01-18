@@ -1034,34 +1034,50 @@
             trackGeo.computeVertexNormals();
 
             // Dirt Track Texture
-            const sandCanvas = document.createElement('canvas');
-            sandCanvas.width = 512; sandCanvas.height = 512;
-            const sCtx = sandCanvas.getContext('2d');
-            // Dark brown dirt base
-            sCtx.fillStyle = '#6B4423';
-            sCtx.fillRect(0, 0, 512, 512);
-            // Add dirt texture with varied browns - REDUCED LOOP COUNT
-            for (let i = 0; i < 10000; i++) {
-                const rand = Math.random();
-                if (rand < 0.4) {
-                    sCtx.fillStyle = '#8B5A3C'; // Lighter brown
-                } else if (rand < 0.7) {
-                    sCtx.fillStyle = '#5C3317'; // Darker brown
-                } else {
-                    sCtx.fillStyle = '#A0522D'; // Sienna
+            // Dirt Track Texture
+            const trackTex = new THREE.TextureLoader().load(
+                'textures/dirt.png',
+                function (texture) {
+                    console.log('Dirt texture loaded successfully');
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    texture.repeat.set(4, 4);
+                    texture.needsUpdate = true;
+                },
+                undefined,
+                function (error) {
+                    console.warn('Error loading dirt texture, using procedural fallback:', error);
+                    const sandCanvas = document.createElement('canvas');
+                    sandCanvas.width = 512; sandCanvas.height = 512;
+                    const sCtx = sandCanvas.getContext('2d');
+                    // Dark brown dirt base
+                    sCtx.fillStyle = '#6B4423';
+                    sCtx.fillRect(0, 0, 512, 512);
+                    // Add dirt texture with varied browns
+                    for (let i = 0; i < 10000; i++) {
+                        const rand = Math.random();
+                        if (rand < 0.4) sCtx.fillStyle = '#8B5A3C';
+                        else if (rand < 0.7) sCtx.fillStyle = '#5C3317';
+                        else sCtx.fillStyle = '#A0522D';
+                        const size = Math.random() < 0.8 ? 2 : 4;
+                        sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
+                    }
+                    const fallback = new THREE.CanvasTexture(sandCanvas);
+                    fallback.wrapS = THREE.RepeatWrapping;
+                    fallback.wrapT = THREE.RepeatWrapping;
+                    fallback.repeat.set(4, 4);
+                    trackMesh.material.map = fallback;
+                    trackMesh.material.needsUpdate = true;
                 }
-                const size = Math.random() < 0.8 ? 2 : 4; // Larger particles
-                sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
-            }
-            const trackTex = new THREE.CanvasTexture(sandCanvas);
-            trackTex.needsUpdate = true;
+            );
+
             trackTex.wrapS = THREE.RepeatWrapping;
             trackTex.wrapT = THREE.RepeatWrapping;
             trackTex.repeat.set(4, 4);
 
             const trackMesh = new THREE.Mesh(trackGeo, new THREE.MeshStandardMaterial({
-                // map: trackTex,  // Temporarily disabled to debug
-                color: 0x5C3317, // Dark brown - should be clearly visible
+                map: trackTex,
+                color: 0xffffff,
                 roughness: 1.0,
                 side: THREE.DoubleSide
             }));

@@ -2,6 +2,14 @@
 <html lang="ja">
 
 <head>
+    <!--
+    ================================================================================
+    Toy Derby: Grand Prix - メイン HTML
+    
+    このファイルはゲームのすべての構造、スタイル、ロジックを含んでいます。
+    Three.jsを使用した3D描画と、HTML/CSSによるUIオーバーレイを組み合わせています。
+    ================================================================================
+    -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Toy Derby: Grand Prix</title>
@@ -40,7 +48,11 @@
             color: #e2e8f0;
         }
 
-        /* Glassmorphism Utilities */
+        /* =========================================
+           ユーティリティ & デザインシステム
+           ========================================= */
+
+        /* グラスモーフィズム (すりガラス効果) の共通クラス */
         .glass-panel {
             background: rgba(15, 23, 42, 0.65);
             backdrop-filter: blur(12px);
@@ -54,7 +66,7 @@
             padding-bottom: 2rem;
         }
 
-        /* Premium Horse Card */
+        /* 馬選択カードのスタイル */
         .horse-card {
             background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -132,7 +144,7 @@
             background: rgba(40, 20, 0, 0.8);
         }
 
-        /* Neon Button */
+        /* ネオン風ボタンのエフェクト */
         .btn-neon {
             background: linear-gradient(90deg, #F59E0B, #ea580c);
             color: white;
@@ -162,7 +174,10 @@
             border-color: transparent;
         }
 
-        /* Game UI Layout */
+        /* =========================================
+           ゲームUIレイアウト
+           Three.jsのキャンバスの上に重ねる要素群
+           ========================================= */
         #game-ui {
             position: absolute;
             top: 0;
@@ -507,6 +522,10 @@
                     TOY DERBY <span class="text-gold-500 text-sm">GP</span>
                 </h1>
                 <div class="h-6 w-px bg-white/20 skew-x-[10deg]"></div>
+                <div id="course-name-display"
+                    class="text-sm font-display text-white skew-x-[10deg] tracking-wide text-shadow-sm uppercase">
+                    LOADING</div>
+                <div class="h-6 w-px bg-white/20 skew-x-[10deg]"></div>
                 <div class="flex items-center gap-2 skew-x-[10deg]">
                     <div class="text-gold-400 text-xs">CREDITS</div>
                     <span id="wallet-display"
@@ -576,7 +595,14 @@
     </div>
 
     <script>
-        // --- Sound Manager (Web Audio API) ---
+        /*
+        ================================================================================
+        JavaScript ゲームロジック
+        ================================================================================
+        */
+
+        // --- サウンド管理 (Web Audio API) ---
+        // BGM、SE、実況の音声合成を管理します
         const SoundManager = {
             ctx: null,
             isMuted: false,
@@ -750,7 +776,8 @@
             if (SoundManager.isMuted) SoundManager.playAtmosphere(false);
         }
 
-        // --- Configuration & Constants ---
+        // --- ゲーム設定定数 ---
+        // コースの幅や半径、基本設定を定義
         const CONFIG = {
             laneWidth: 3.5,
             trackRadiusX: 180,
@@ -761,6 +788,8 @@
             raceSpeedMult: 1.0
         };
 
+        // --- 馬のデータ定義 ---
+        // 各馬のスキル、色、名前、発動条件などを定義
         const HORSE_DATA = [
             {
                 name: "ホワイトウィンド", color: 0xF0F0F0, skill: "Divine Wind", skillDesc: "ラストスパート超加速", icon: "🌪️",
@@ -789,6 +818,8 @@
             }
         ];
 
+        // --- ゲーム状態管理 (State) ---
+        // 現在の所持金、レース状態、カメラモードなどを保持
         const STATE = {
             wallet: 1000,
             betAmount: 100,
@@ -807,10 +838,12 @@
             rainParticles: null,
             isWinningRun: false,
             cameraShake: 0,
-            timeScale: 1.0
+            timeScale: 1.0,
+            currentCourse: null
         };
 
-        // --- Weather System ---
+        // --- 天候システム ---
+        // 天候ごとの環境光、霧、トラック状態への影響を定義
         const WEATHER_TYPES = [
             {
                 name: '晴れ',
@@ -860,7 +893,8 @@
             }
         ];
 
-        // --- Three.js Setup ---
+        // --- Three.js 初期化 ---
+        // シーン、カメラ、レンダラー、ライトのセットアップ
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
         scene.fog = new THREE.Fog(0x87CEEB, 40, 350);
@@ -938,84 +972,138 @@
             STATE.trackCondition = weather.trackCondition;
         }
 
-        // --- Environment & Track ---
-        function createTrackCurve() {
-            // Create a more complex, longer track shape
-            // Custom points for a unique layout (twisted oval / kidney shape)
-            const points = [
-                new THREE.Vector3(200, 0, 0),    // Start straight
-                new THREE.Vector3(180, 0, 80),   // Turn 1
-                new THREE.Vector3(100, 0, 120),  // Turn 1 continued
-                new THREE.Vector3(-50, 0, 100),  // Backstretch start
-                new THREE.Vector3(-150, 0, 40),  // Backstretch mid
-                new THREE.Vector3(-220, 0, 0),   // Backstretch end
-                new THREE.Vector3(-180, 0, -80), // Turn 2
-                new THREE.Vector3(-50, 0, -120), // Turn 2 continued / S-curve start
-                new THREE.Vector3(50, 0, -80),   // S-curve mid
-                new THREE.Vector3(150, 0, -60),  // Final turn setup
-                new THREE.Vector3(200, 0, 0)     // Loop close
-            ];
+        // --- コース & トラック生成 ---
+        let trackGroup = null;
+
+        // コース形状のデータ定義 (ベジェ曲線の制御点)
+        const COURSES = [
+            {
+                name: "Classic Circuit",
+                points: [
+                    new THREE.Vector3(200, 0, 0),
+                    new THREE.Vector3(180, 0, 80),
+                    new THREE.Vector3(100, 0, 120),
+                    new THREE.Vector3(-50, 0, 100),
+                    new THREE.Vector3(-150, 0, 40),
+                    new THREE.Vector3(-220, 0, 0),
+                    new THREE.Vector3(-180, 0, -80),
+                    new THREE.Vector3(-50, 0, -120),
+                    new THREE.Vector3(50, 0, -80),
+                    new THREE.Vector3(150, 0, -60),
+                    new THREE.Vector3(200, 0, 0)
+                ]
+            },
+            {
+                name: "Forest Oval",
+                points: [
+                    new THREE.Vector3(200, 0, 0),
+                    new THREE.Vector3(200, 0, 80),
+                    new THREE.Vector3(0, 0, 120),
+                    new THREE.Vector3(-200, 0, 80),
+                    new THREE.Vector3(-200, 0, 0),
+                    new THREE.Vector3(-200, 0, -80),
+                    new THREE.Vector3(0, 0, -120),
+                    new THREE.Vector3(200, 0, -80),
+                    new THREE.Vector3(200, 0, 0)
+                ]
+            },
+            {
+                name: "Dragon's Long Run",
+                points: [
+                    new THREE.Vector3(200, 0, 0),    // Start
+                    new THREE.Vector3(250, 0, 100),  // Wide turn
+                    new THREE.Vector3(150, 0, 180),  // Deep curve
+                    new THREE.Vector3(0, 0, 150),    // Inner twist
+                    new THREE.Vector3(-100, 0, 200), // Technical section
+                    new THREE.Vector3(-250, 0, 120), // Backstretch start
+                    new THREE.Vector3(-320, 0, 0),   // Far edge (Long straight)
+                    new THREE.Vector3(-280, 0, -150),// Sharp turn
+                    new THREE.Vector3(-100, 0, -100),// S-curve entry
+                    new THREE.Vector3(0, 0, -160),   // S-curve exit
+                    new THREE.Vector3(120, 0, -120), // Final turn setup
+                    new THREE.Vector3(200, 0, 0)     // Loop close
+                ]
+            }
+        ];
+
+        function createTrackCurve(points) {
             return new THREE.CatmullRomCurve3(points, true, 'centripetal');
         }
-        STATE.trackCurve = createTrackCurve();
 
-        function buildTrack() {
+        function cleanupLevel() {
+            // Remove old track group
+            if (trackGroup) {
+                scene.remove(trackGroup);
+                // Dispose logic could be added here for geometries/materials to avoid memory leaks
+                // For now, relying on GC as per simple implementation
+                trackGroup = null;
+            }
+
+            // Remove Gates
+            if (STATE.gates.length > 0) {
+                STATE.gates.forEach(g => g.dispose());
+                STATE.gates = [];
+            }
+
+            // Remove Spectators
+            if (spectatorManager) {
+                spectatorManager.dispose();
+                spectatorManager = null;
+            }
+        }
+
+        function buildTrack(courseData) {
+            cleanupLevel();
+
+            STATE.trackCurve = createTrackCurve(courseData.points);
+            trackGroup = new THREE.Group();
+            scene.add(trackGroup);
+
             // Ground
             const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+            // Create material immediately so we can assign texture later
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x4CAF50, roughness: 1.0 });
+
             const textureLoader = new THREE.TextureLoader();
             const grassTexture = textureLoader.load(
                 'textures/grass.png',
                 function (texture) {
-                    // 読み込み成功時のコールバック
-                    console.log('Grass texture loaded successfully');
                     texture.wrapS = THREE.RepeatWrapping;
                     texture.wrapT = THREE.RepeatWrapping;
                     texture.repeat.set(25, 25);
-                    texture.needsUpdate = true;
+                    groundMat.map = texture;
+                    groundMat.needsUpdate = true;
                 },
                 undefined,
                 function (error) {
-                    // エラー時のコールバック：フォールバックとしてCanvasで生成
-                    console.warn('Error loading grass texture, using procedural fallback:', error);
-
+                    console.warn('Error loading grass texture, using procedural fallback');
                     const canvas = document.createElement('canvas');
                     canvas.width = 512; canvas.height = 512;
                     const ctx = canvas.getContext('2d');
                     ctx.fillStyle = '#4CAF50';
                     ctx.fillRect(0, 0, 512, 512);
-
                     for (let i = 0; i < 10000; i++) {
                         ctx.fillStyle = Math.random() > 0.5 ? '#66BB6A' : '#388E3C';
                         const size = Math.random() * 3 + 1;
                         ctx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
                     }
-
                     const fallbackTexture = new THREE.CanvasTexture(canvas);
                     fallbackTexture.wrapS = THREE.RepeatWrapping;
                     fallbackTexture.wrapT = THREE.RepeatWrapping;
                     fallbackTexture.repeat.set(25, 25);
-
-                    ground.material.map = fallbackTexture;
-                    ground.material.needsUpdate = true;
+                    groundMat.map = fallbackTexture;
+                    groundMat.needsUpdate = true;
                 }
             );
-            // 初期マテリアル（読み込み待ち中は仮の色か、テクスチャなし）
-            // grassTextureは非同期で設定されるため、Loading中は白などが表示される可能性があるが、
-            // Ground生成時にmapを指定しているので、ロード完了後に自動更新されるはず。
-            // ただしロード失敗時はonErrorが走るまでテクスチャが無い状態になる。
 
-            grassTexture.wrapS = THREE.RepeatWrapping;
-            grassTexture.wrapT = THREE.RepeatWrapping;
-            grassTexture.repeat.set(25, 25);
-            const groundMat = new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 1.0 });
             const ground = new THREE.Mesh(groundGeo, groundMat);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;
-            scene.add(ground);
+            trackGroup.add(ground);
 
-            // Track Surface (Corrected UVs & Texture)
+            // Track Surface
             const trackWidth = CONFIG.laneWidth * 6;
-            const points = STATE.trackCurve.getSpacedPoints(200); // Reduced from 400 for performance
+            const points = STATE.trackCurve.getSpacedPoints(200);
             const vertices = [], uvs = [], indices = [];
 
             points.forEach((p, i) => {
@@ -1023,7 +1111,7 @@
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
                 const p1 = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2));
                 const p2 = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2));
-                vertices.push(p1.x, 0.5, p1.z, p2.x, 0.5, p2.z); // Raised higher to be clearly visible
+                vertices.push(p1.x, 0.5, p1.z, p2.x, 0.5, p2.z);
                 const v = i / 10;
                 uvs.push(0, v, 1, v);
             });
@@ -1037,47 +1125,30 @@
             trackGeo.setIndex(indices);
             trackGeo.computeVertexNormals();
 
-            // Dirt Track Texture
-            // Dirt Track Texture
-            const trackTex = new THREE.TextureLoader().load(
-                'textures/dirt.png',
-                function (texture) {
-                    console.log('Dirt texture loaded successfully');
-                    texture.wrapS = THREE.RepeatWrapping;
-                    texture.wrapT = THREE.RepeatWrapping;
-                    texture.repeat.set(4, 4);
-                    texture.needsUpdate = true;
-                },
-                undefined,
-                function (error) {
-                    console.warn('Error loading dirt texture, using procedural fallback:', error);
-                    const sandCanvas = document.createElement('canvas');
-                    sandCanvas.width = 512; sandCanvas.height = 512;
-                    const sCtx = sandCanvas.getContext('2d');
-                    // Dark brown dirt base
-                    sCtx.fillStyle = '#6B4423';
-                    sCtx.fillRect(0, 0, 512, 512);
-                    // Add dirt texture with varied browns
-                    for (let i = 0; i < 10000; i++) {
-                        const rand = Math.random();
-                        if (rand < 0.4) sCtx.fillStyle = '#8B5A3C';
-                        else if (rand < 0.7) sCtx.fillStyle = '#5C3317';
-                        else sCtx.fillStyle = '#A0522D';
-                        const size = Math.random() < 0.8 ? 2 : 4;
-                        sCtx.fillRect(Math.random() * 512, Math.random() * 512, size, size);
-                    }
-                    const fallback = new THREE.CanvasTexture(sandCanvas);
-                    fallback.wrapS = THREE.RepeatWrapping;
-                    fallback.wrapT = THREE.RepeatWrapping;
-                    fallback.repeat.set(4, 4);
-                    trackMesh.material.map = fallback;
-                    trackMesh.material.needsUpdate = true;
+            // Track Texture
+            const trackTex = textureLoader.load('textures/dirt.png', (t) => {
+                t.wrapS = THREE.RepeatWrapping;
+                t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(4, 4);
+            }, undefined, (err) => {
+                const sandCanvas = document.createElement('canvas');
+                sandCanvas.width = 512; sandCanvas.height = 512;
+                const sCtx = sandCanvas.getContext('2d');
+                sCtx.fillStyle = '#6B4423'; sCtx.fillRect(0, 0, 512, 512);
+                for (let i = 0; i < 10000; i++) {
+                    const rand = Math.random();
+                    if (rand < 0.4) sCtx.fillStyle = '#8B5A3C';
+                    else if (rand < 0.7) sCtx.fillStyle = '#5C3317';
+                    else sCtx.fillStyle = '#A0522D';
+                    sCtx.fillRect(Math.random() * 512, Math.random() * 512, 4, 4);
                 }
-            );
-
-            trackTex.wrapS = THREE.RepeatWrapping;
-            trackTex.wrapT = THREE.RepeatWrapping;
-            trackTex.repeat.set(4, 4);
+                const fallback = new THREE.CanvasTexture(sandCanvas);
+                fallback.wrapS = THREE.RepeatWrapping;
+                fallback.wrapT = THREE.RepeatWrapping;
+                fallback.repeat.set(4, 4);
+                trackMesh.material.map = fallback;
+                trackMesh.material.needsUpdate = true;
+            });
 
             const trackMesh = new THREE.Mesh(trackGeo, new THREE.MeshStandardMaterial({
                 map: trackTex,
@@ -1087,11 +1158,10 @@
             }));
             trackMesh.receiveShadow = true;
             trackMesh.castShadow = true;
-            scene.add(trackMesh);
+            trackGroup.add(trackMesh);
 
             // Objects
             const innerRailPoints = [], outerRailPoints = [];
-            // Re-use geometries and materials for performance
             const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.2);
             const poleMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
 
@@ -1099,21 +1169,20 @@
                 const tangent = STATE.trackCurve.getTangentAt(i / 200).normalize();
                 const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
 
-                // Add poles less frequently
                 if (i % 5 === 0) {
                     const posIn = p.clone().add(normal.clone().multiplyScalar(trackWidth / 2 * 1.05));
                     const poleIn = new THREE.Mesh(poleGeo, poleMat); poleIn.position.set(posIn.x, 0.6, posIn.z);
-                    scene.add(poleIn);
+                    trackGroup.add(poleIn);
 
                     const posOut = p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2 * 1.05));
                     const poleOut = new THREE.Mesh(poleGeo, poleMat); poleOut.position.set(posOut.x, 0.6, posOut.z);
-                    scene.add(poleOut);
+                    trackGroup.add(poleOut);
                 }
                 innerRailPoints.push(p.clone().add(normal.clone().multiplyScalar(trackWidth / 2 * 1.05)).setY(1.0));
                 outerRailPoints.push(p.clone().add(normal.clone().multiplyScalar(-trackWidth / 2 * 1.05)).setY(1.0));
             });
-            scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(innerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
-            scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(outerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
+            trackGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(innerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
+            trackGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(outerRailPoints, true), 200, 0.08, 6, true), new THREE.MeshStandardMaterial({ color: 0xffffff })));
 
             const goalT = CONFIG.finishLineT;
             const goalPoint = STATE.trackCurve.getPointAt(goalT);
@@ -1128,85 +1197,70 @@
             const tCtx = document.createElement('canvas').getContext('2d'); tCtx.canvas.width = 256; tCtx.canvas.height = 64;
             tCtx.fillStyle = '#B71C1C'; tCtx.fillRect(0, 0, 256, 64); tCtx.fillStyle = 'white'; tCtx.font = 'bold 40px Arial'; tCtx.textAlign = 'center'; tCtx.textBaseline = 'middle'; tCtx.fillText('GOAL', 128, 32);
             banner.material = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(tCtx.canvas) });
-            goalGroup.add(gp1, gp2, banner); scene.add(goalGroup);
+            goalGroup.add(gp1, gp2, banner); trackGroup.add(goalGroup);
 
             const standGroup = new THREE.Group();
             standGroup.add(new THREE.Mesh(new THREE.BoxGeometry(60, 20, 30), new THREE.MeshStandardMaterial({ color: 0xffffff })).translateX(0).translateY(10));
             standGroup.add(new THREE.Mesh(new THREE.BoxGeometry(64, 2, 40), new THREE.MeshStandardMaterial({ color: 0xeeeeee })).translateY(25).translateZ(5));
             const goalTangent = STATE.trackCurve.getTangentAt(goalT).normalize();
             const goalNormal = new THREE.Vector3(-goalTangent.z, 0, goalTangent.x).normalize();
-            standGroup.position.copy(goalPoint.clone().add(goalNormal.multiplyScalar(-45))); standGroup.lookAt(goalPoint); scene.add(standGroup);
+            standGroup.position.copy(goalPoint.clone().add(goalNormal.multiplyScalar(-45))); standGroup.lookAt(goalPoint); trackGroup.add(standGroup);
 
-            // Trees - Improved Realism (3-Tier Pine Trees)
-            // Reusing geometries for performance
+            // Trees
             const trunkGeo = new THREE.CylinderGeometry(0.4, 0.6, 2.5, 7);
             const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4A3828, roughness: 0.9 });
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2E7D32, roughness: 0.8, flatShading: true });
+            const foliageGeo1 = new THREE.ConeGeometry(3.0, 4.0, 7);
+            const foliageGeo2 = new THREE.ConeGeometry(2.3, 3.5, 7);
+            const foliageGeo3 = new THREE.ConeGeometry(1.6, 3.0, 7);
 
-            const foliageGeo1 = new THREE.ConeGeometry(3.0, 4.0, 7); // Bottom
-            const foliageGeo2 = new THREE.ConeGeometry(2.3, 3.5, 7); // Middle
-            const foliageGeo3 = new THREE.ConeGeometry(1.6, 3.0, 7); // Top
-            const foliageMat = new THREE.MeshStandardMaterial({
-                color: 0x2E7D32,
-                roughness: 0.8,
-                flatShading: true // Low-poly style look
-            });
-
-            const treeCount = 60; // Increased density slightly
+            const treeCount = 60;
             for (let i = 0; i < treeCount; i++) {
                 const t = Math.random();
                 const p = STATE.trackCurve.getPointAt(t);
                 const tan = STATE.trackCurve.getTangentAt(t).normalize();
                 const nor = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
-
                 const dist = 35 + Math.random() * 60;
                 const side = Math.random() > 0.3 ? 1 : -1;
                 const treePos = p.add(nor.multiplyScalar(dist * side));
-
                 const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.position.y = 1.25; trunk.castShadow = true; trunk.receiveShadow = true; tree.add(trunk);
+                const l1 = new THREE.Mesh(foliageGeo1, foliageMat); l1.position.y = 3.0; l1.receiveShadow = true; l1.rotation.y = Math.random(); tree.add(l1);
+                const l2 = new THREE.Mesh(foliageGeo2, foliageMat); l2.position.y = 5.0; l2.receiveShadow = true; l2.rotation.y = Math.random(); tree.add(l2);
+                const l3 = new THREE.Mesh(foliageGeo3, foliageMat); l3.position.y = 7.0; l3.receiveShadow = true; l3.rotation.y = Math.random(); tree.add(l3);
+                const scale = 0.8 + Math.random() * 0.6; tree.scale.set(scale, scale, scale); tree.rotation.y = Math.random() * Math.PI * 2;
+                tree.position.copy(treePos); trackGroup.add(tree);
+            }
 
-                // Trunk
-                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-                trunk.position.y = 1.25;
-                trunk.castShadow = true;
-                trunk.receiveShadow = true;
-                tree.add(trunk);
+            // Initialize Spectators for new track
+            spectatorManager = new SpectatorManager(scene);
 
-                // Foliage Levels
-                const l1 = new THREE.Mesh(foliageGeo1, foliageMat);
-                l1.position.y = 3.0;
-                l1.castShadow = true;
-                l1.receiveShadow = true;
-                l1.rotation.y = Math.random() * Math.PI; // Random rotation per layer
-                tree.add(l1);
-
-                const l2 = new THREE.Mesh(foliageGeo2, foliageMat);
-                l2.position.y = 5.0;
-                l2.castShadow = true;
-                l2.receiveShadow = true;
-                l2.rotation.y = Math.random() * Math.PI;
-                tree.add(l2);
-
-                const l3 = new THREE.Mesh(foliageGeo3, foliageMat);
-                l3.position.y = 7.0;
-                l3.castShadow = true;
-                l3.receiveShadow = true;
-                l3.rotation.y = Math.random() * Math.PI;
-                tree.add(l3);
-
-                // Random Variation
-                const scale = 0.8 + Math.random() * 0.6;
-                tree.scale.set(scale, scale, scale);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-
-                tree.position.copy(treePos);
-                scene.add(tree);
+            // Re-initialize Gates
+            if (STATE.horses.length > 0) {
+                // If horses exist (rebuild), we need to remake gates for them
+                STATE.horses.forEach((h, index) => {
+                    const gate = new Gate((index - 2) * CONFIG.laneWidth);
+                    STATE.gates.push(gate);
+                });
             }
         }
 
-        document.getElementById('progress-bar').style.width = '50%';
-        buildTrack();
+        function selectRandomCourse() {
+            const courseIdx = Math.floor(Math.random() * COURSES.length);
+            STATE.currentCourse = COURSES[courseIdx];
+            console.log("Selected Course: ", STATE.currentCourse.name);
 
-        // --- Gate Class ---
+            const el = document.getElementById('course-name-display');
+            if (el) el.innerText = STATE.currentCourse.name;
+
+            document.getElementById('progress-bar').style.width = '70%'; // Update loading visual
+            buildTrack(STATE.currentCourse);
+        }
+
+        // selectRandomCourse(); // Removed global call to avoid hoisting errors with Classes
+
+        // --- ゲートクラス ---
+        // スタートゲートの3Dモデル生成とアニメーション制御
         const GATE_GEO = {
             post: new THREE.BoxGeometry(0.2, 4, 0.2),
             top: new THREE.BoxGeometry(3.2, 0.4, 0.4),
@@ -1251,9 +1305,17 @@
                     const speed = 8.0; this.leftDoor.rotation.y += delta * speed; this.rightDoor.rotation.y -= delta * speed;
                 }
             }
+            dispose() {
+                if (this.mesh) {
+                    scene.remove(this.mesh);
+                    // traverse and dispose geometry/material if needed
+                    this.mesh = null;
+                }
+            }
         }
 
-        // --- Spectator System ---
+        // --- 観客システム ---
+        // InstancedMeshを使用して大量の観客を効率的に描画
         class SpectatorManager {
             constructor(scene, count = 1500) {
                 this.scene = scene;
@@ -1372,11 +1434,20 @@
                 }
                 this.mesh.instanceMatrix.needsUpdate = true;
             }
+
+            dispose() {
+                if (this.mesh) {
+                    this.scene.remove(this.mesh);
+                    this.mesh.dispose();
+                    this.mesh = null;
+                }
+            }
         }
 
         let spectatorManager;
 
-        // --- Particle System ---
+        // --- パーティクルシステム ---
+        // 砂埃、水しぶき、スキルエフェクトなどの粒子制御
         const ParticleType = { DUST: 0, SPLASH: 1, SKILL: 2 };
 
         class ParticleManager {
@@ -1572,7 +1643,8 @@
 
         const particleManager = new ParticleManager(scene);
 
-        // --- Confetti System ---
+        // --- 紙吹雪システム ---
+        // ゴール時の演出用
         class ConfettiManager {
             constructor(scene, count = 1000) {
                 this.count = count;
@@ -1663,7 +1735,8 @@
         }
         const confettiManager = new ConfettiManager(scene);
 
-        // --- Horse Class ---
+        // --- 馬クラス ---
+        // 馬の3Dモデル、移動ロジック、アニメーション、スキル発動を管理
         class Horse {
             constructor(id, data) {
                 this.id = id; this.name = data.name; this.skillName = data.skill; this.skillDesc = data.skillDesc; this.icon = data.icon;
@@ -1825,7 +1898,8 @@
             }
         }
 
-        // --- Commentary System ---
+        // --- 実況システム ---
+        // レース展開に応じたテキスト表示と読み上げ
         let lastCommentTime = 0;
         let lastLeader = null;
         let commentQueue = [];
@@ -1911,7 +1985,8 @@
             if (msg) { announce(msg); lastCommentTime = time; }
         }
 
-        // --- UI & Game Logic ---
+        // --- UI & ゲーム進行ロジック ---
+        // カットイン表示、スタート処理、勝者判定など
         function showCutIn(name, skill, icon) {
             const el = document.getElementById('cut-in-overlay');
             document.getElementById('cut-in-name').innerText = name;
@@ -1935,10 +2010,20 @@
 
         function initGame() {
             document.getElementById('progress-bar').style.width = '80%';
+
+            // 1. Build Track first (Needed for Horse positioning logic)
+            selectRandomCourse();
+
+            // 2. Create Horses
             HORSE_DATA.forEach((data, index) => {
                 const h = new Horse(index, data); STATE.horses.push(h);
-                const gate = new Gate((index - 2) * CONFIG.laneWidth); STATE.gates.push(gate);
+                // 3. Create Gates (since buildTrack skipped them as horses array was empty)
+                const gate = new Gate((index - 2) * CONFIG.laneWidth);
+                STATE.gates.push(gate);
             });
+
+
+
             const selector = document.getElementById('horse-selector');
             HORSE_DATA.forEach((data, index) => {
                 const el = document.createElement('div');
@@ -2066,7 +2151,16 @@
             bettingPanel.querySelector('.glass-panel').classList.remove('scale-95');
 
             document.getElementById('camera-btn').classList.add('hidden');
-            STATE.horses.forEach(h => h.reset()); STATE.gates.forEach(g => g.reset()); updateCamera(0);
+
+            // Random Course for next race
+            selectRandomCourse();
+
+            STATE.horses.forEach(h => h.reset());
+            // Gates are reset inside buildTrack (technically recreated)
+            // But if we want to be safe:
+            // STATE.gates.forEach(g => g.reset()); // They are new, so already closed.
+
+            updateCamera(0);
             document.getElementById('commentary-box').classList.remove('active');
             SoundManager.playAtmosphere(false);
         }
@@ -2139,7 +2233,8 @@
                 const normal = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
 
                 if (STATE.cameraMode === 3) {
-                    // --- TV STYLE AUTO CAMERA ---
+                    // --- TV中継風 オートカメラロジック ---
+                    // 多彩なカメラアングルをランダムまたは状況に応じて切り替え
                     const p = leader.currentT;
 
                     // Auto Switching Logic (more frequent, random)
@@ -2217,8 +2312,10 @@
         }
 
         // Initialize Spectators
-        spectatorManager = new SpectatorManager(scene);
+        // spectatorManager = new SpectatorManager(scene); // Removed redundant init
 
+        // --- メインループ ---
+        // 毎フレームの更新処理 (アニメーション、物理演算、描画)
         function animate() {
             requestAnimationFrame(animate);
             const deltaRaw = clock.getDelta();

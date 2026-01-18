@@ -601,92 +601,154 @@
         ================================================================================
         */
 
-        // --- サウンド管理 (Web Audio API) ---
-        // BGM、SE、実況の音声合成を管理します
+        // ================================================================================
+        // サウンド管理システム (Web Audio API)
+        // ================================================================================
+        // ゲーム内の全ての音響効果を管理するオブジェクト
+        // - BGM、効果音、実況音声の再生を制御
+        // - Web Audio APIを使用してプロシージャルな音を生成
+        // - Speech Synthesis APIで実況テキストを読み上げ
         const SoundManager = {
+            // Web Audio APIのコンテキスト(音声処理の中核)
             ctx: null,
+            // ミュート状態フラグ
             isMuted: false,
 
+            /**
+             * オーディオコンテキストの初期化
+             * ユーザーインタラクション後に呼び出す必要がある(ブラウザのポリシー)
+             */
             init: function () {
+                // コンテキストが未作成の場合は新規作成
                 if (!this.ctx) {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     this.ctx = new AudioContext();
                 }
+                // サスペンド状態の場合は再開(ブラウザの自動再生ポリシー対策)
                 if (this.ctx.state === 'suspended') {
                     this.ctx.resume();
                 }
             },
 
+            /**
+             * オシレーター(発振器)を使用して音を生成・再生
+             * @param {string} type - 波形タイプ ('sine', 'square', 'triangle', 'sawtooth')
+             * @param {number} freq - 周波数(Hz)
+             * @param {number} duration - 持続時間(秒)
+             * @param {number} startTime - 開始遅延時間(秒)
+             * @param {number} vol - 音量(0.0-1.0)
+             */
             playOscillator: function (type, freq, duration, startTime = 0, vol = 0.1) {
                 if (!this.ctx || this.isMuted) return;
+                // オシレーターノード(音源)を作成
                 const osc = this.ctx.createOscillator();
+                // ゲインノード(音量調整)を作成
                 const gain = this.ctx.createGain();
+                // 波形タイプを設定
                 osc.type = type;
+                // 周波数を設定
                 osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
+                // 初期音量を設定
                 gain.gain.setValueAtTime(vol, this.ctx.currentTime + startTime);
+                // 音量を徐々に減衰させる(フェードアウト効果)
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + startTime + duration);
+                // オシレーターをゲインに接続
                 osc.connect(gain);
+                // ゲインをスピーカー出力に接続
                 gain.connect(this.ctx.destination);
+                // 音の再生開始
                 osc.start(this.ctx.currentTime + startTime);
+                // 音の再生停止
                 osc.stop(this.ctx.currentTime + startTime + duration);
             },
 
+            /**
+             * UIクリック音を再生
+             * 800Hzのサイン波で短い「ピッ」という音
+             */
             playClick: function () {
                 this.playOscillator('sine', 800, 0.1, 0, 0.1);
             },
 
+            /**
+             * カウントダウン音を再生
+             * @param {number} count - カウント数(0でGO!音)
+             */
             playCountdown: function (count) {
                 if (count > 0) {
-                    this.playOscillator('square', 600, 0.15, 0, 0.1); // 3, 2, 1
+                    // 3, 2, 1のカウント音(600Hzの矩形波)
+                    this.playOscillator('square', 600, 0.15, 0, 0.1);
                 } else {
-                    this.playOscillator('square', 1200, 0.4, 0, 0.1); // GO!
+                    // GO!の音(1200Hzの矩形波、より高く長い)
+                    this.playOscillator('square', 1200, 0.4, 0, 0.1);
                 }
             },
 
+            /**
+             * スタートゲート開放音を再生
+             * ホワイトノイズをローパスフィルターで加工して重厚な音を生成
+             */
             playGate: function () {
                 if (!this.ctx || this.isMuted) return;
-                // Burst of noise
+                // ノイズバッファを作成(0.5秒分)
                 const bufferSize = this.ctx.sampleRate * 0.5;
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
+                // ホワイトノイズを生成(ランダムな値)
                 for (let i = 0; i < bufferSize; i++) {
                     data[i] = Math.random() * 2 - 1;
                 }
+                // バッファソースノードを作成
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = buffer;
                 const gain = this.ctx.createGain();
 
-                // Lowpass filter for "heavy" gate sound
+                // ローパスフィルター(高周波をカット)で重厚な音に加工
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 500;
+                filter.frequency.value = 500; // 500Hz以下の周波数のみ通過
 
+                // 音量を設定し、徐々に減衰
                 gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
 
+                // ノード接続: ノイズ → フィルター → ゲイン → 出力
                 noise.connect(filter);
                 filter.connect(gain);
                 gain.connect(this.ctx.destination);
                 noise.start();
             },
 
+            /**
+             * ファンファーレ音を再生
+             * アルペジオ(分散和音)でC-E-G-Cのメロディーを演奏
+             */
             playFanfare: function () {
                 if (!this.ctx || this.isMuted) return;
-                // Simple Arpeggio: C, E, G, C
+                // Cメジャーコードの音階(ド・ミ・ソ・ド)
                 const now = this.ctx.currentTime;
-                const notes = [523.25, 659.25, 783.99, 1046.50];
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C, E, G, C
+                // 各音を0.15秒間隔で順次再生
                 notes.forEach((freq, i) => {
                     this.playOscillator('triangle', freq, 0.3, i * 0.15, 0.15);
                 });
+                // 最後の高いCを長めに再生
                 this.playOscillator('triangle', 1046.50, 0.8, 0.6, 0.15);
             },
 
+            /**
+             * スキル発動音を再生
+             * 周波数が上昇する効果音(400Hz → 1200Hz)
+             */
             playSkill: function () {
                 if (!this.ctx || this.isMuted) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
+                // 開始周波数を設定
                 osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                // 0.5秒かけて周波数を上昇(ピッチベンド効果)
                 osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.5);
+                // 音量を設定し、徐々に減衰
                 gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
                 gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
                 osc.connect(gain);
@@ -695,56 +757,74 @@
                 osc.stop(this.ctx.currentTime + 0.5);
             },
 
+            /**
+             * 勝利音を再生
+             * メジャーコード(C-E-G)を同時に鳴らして華やかな音を生成
+             */
             playWin: function () {
                 if (!this.ctx || this.isMuted) return;
-                // Major chord
+                // Cメジャーコードの構成音
                 const now = this.ctx.currentTime;
                 [523.25, 659.25, 783.99].forEach(f => {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
-                    osc.type = 'triangle';
+                    osc.type = 'triangle'; // 三角波で柔らかい音色
                     osc.frequency.value = f;
                     gain.gain.setValueAtTime(0.1, now);
                     gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
-                    osc.connect(gain); gain.connect(this.ctx.destination);
-                    osc.start(now); osc.stop(now + 1.0);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 1.0);
                 });
             },
 
-            // Background noise loop (Crowd/Gallop mix)
+            // 環境音用のノードとフィルター状態
             noiseNode: null,
             lastOut: 0,
+
+            /**
+             * 環境音(観客の歓声・馬の蹄の音)をループ再生
+             * @param {boolean} active - true:再生開始, false:停止
+             */
             playAtmosphere: function (active) {
                 if (!this.ctx || this.isMuted) return;
                 if (active) {
-                    if (this.noiseNode) return; // already playing
-                    // Pink noise ish
+                    // 既に再生中の場合は何もしない
+                    if (this.noiseNode) return;
+                    // ピンクノイズ風の音を生成(ホワイトノイズより低周波が強調)
                     const bufferSize = this.ctx.sampleRate * 2;
                     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                     const data = buffer.getChannelData(0);
+                    // ローパスフィルター効果を持つノイズ生成
                     for (let i = 0; i < bufferSize; i++) {
                         const white = Math.random() * 2 - 1;
+                        // 前の値と混ぜることで低周波を強調
                         data[i] = (this.lastOut + (0.02 * white)) / 1.02;
                         this.lastOut = data[i];
-                        data[i] *= 3.5;
+                        data[i] *= 3.5; // 音量を増幅
                     }
                     this.noiseNode = this.ctx.createBufferSource();
                     this.noiseNode.buffer = buffer;
-                    this.noiseNode.loop = true;
+                    this.noiseNode.loop = true; // ループ再生を有効化
 
+                    // 音量調整
                     const gain = this.ctx.createGain();
-                    gain.gain.value = 0.05;
+                    gain.gain.value = 0.05; // 控えめな音量
 
+                    // ローパスフィルターで高周波をカット(こもった音に)
                     const filter = this.ctx.createBiquadFilter();
                     filter.type = 'lowpass';
                     filter.frequency.value = 400;
 
+                    // ノード接続
                     this.noiseNode.connect(filter);
                     filter.connect(gain);
                     gain.connect(this.ctx.destination);
                     this.noiseNode.start();
                     this.bgGain = gain;
                 } else {
+                    // 環境音を停止
                     if (this.noiseNode) {
                         this.noiseNode.stop();
                         this.noiseNode = null;
@@ -753,143 +833,194 @@
                 }
             },
 
+            /**
+             * テキストを音声で読み上げ(実況)
+             * @param {string} text - 読み上げるテキスト
+             */
             speak: function (text) {
                 if (this.isMuted) return;
                 if (!window.speechSynthesis) return;
 
-                // Cancel current speech to speak new commentary immediately
+                // 現在再生中の音声をキャンセル(新しい実況を優先)
                 window.speechSynthesis.cancel();
 
+                // 音声合成の設定
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'ja-JP';
-                utterance.rate = 1.3; // Exciting pace
-                utterance.pitch = 1.1; // Slightly higher pitch
-                utterance.volume = 1.0;
+                utterance.lang = 'ja-JP'; // 日本語
+                utterance.rate = 1.3; // 話速(1.3倍速で興奮感を演出)
+                utterance.pitch = 1.1; // ピッチ(やや高めで明るい印象)
+                utterance.volume = 1.0; // 音量(最大)
 
+                // 音声を再生
                 window.speechSynthesis.speak(utterance);
             }
         };
 
+        /**
+         * ミュート状態を切り替える関数
+         * UIボタンから呼び出され、サウンドのON/OFFを切り替える
+         */
         function toggleMute() {
+            // ミュート状態を反転
             SoundManager.isMuted = !SoundManager.isMuted;
+            // ボタンのアイコンを更新(🔇:ミュート, 🔊:音あり)
             document.getElementById('sound-toggle').innerText = SoundManager.isMuted ? '🔇' : '🔊';
+            // ミュート時は環境音も停止
             if (SoundManager.isMuted) SoundManager.playAtmosphere(false);
         }
 
-        // --- ゲーム設定定数 ---
-        // コースの幅や半径、基本設定を定義
+        // ================================================================================
+        // ゲーム設定定数
+        // ================================================================================
+        // コースの形状やレースの基本パラメータを定義
         const CONFIG = {
-            laneWidth: 3.5,
-            trackRadiusX: 180,
-            trackRadiusZ: 90,
-            segmentCount: 200,
-            finishLineT: 0.0,
-            startLineT: 0.0,
-            raceSpeedMult: 1.0
+            laneWidth: 3.5,           // 各馬のレーン幅(メートル)
+            trackRadiusX: 180,        // トラックX軸方向の半径(メートル)
+            trackRadiusZ: 90,         // トラックZ軸方向の半径(メートル)
+            segmentCount: 200,        // トラックを構成するセグメント数(滑らかさに影響)
+            finishLineT: 0.0,         // ゴールラインの位置(0.0-1.0の比率)
+            startLineT: 0.0,          // スタートラインの位置(0.0-1.0の比率)
+            raceSpeedMult: 1.0        // レース速度の全体的な倍率
         };
 
-        // --- 馬のデータ定義 ---
-        // 各馬のスキル、色、名前、発動条件などを定義
+        // ================================================================================
+        // 馬のデータ定義
+        // ================================================================================
+        // 各馬の名前、色、スキル、発動条件を定義
         const HORSE_DATA = [
             {
-                name: "ホワイトウィンド", color: 0xF0F0F0, skill: "Divine Wind", skillDesc: "ラストスパート超加速", icon: "🌪️",
+                name: "ホワイトウィンド",          // 馬名
+                color: 0xF0F0F0,               // 馬体の色(16進数)
+                skill: "Divine Wind",          // スキル名
+                skillDesc: "ラストスパート超加速", // スキル説明
+                icon: "🌪️",                    // アイコン
+                // スキル発動条件: 進行率75%以上で低確率(2%)で発動
                 check: (p, r) => p > 0.75 && r < 0.02,
+                // スキル効果: 速度を1.6～2.0倍に加速
                 activate: (h) => h.speed *= (1.6 + Math.random() * 0.4)
             },
             {
-                name: "チョコチップ", color: 0x5D4037, skill: "Sugar Rush", skillDesc: "中盤で爆発的な加速", icon: "🍩",
+                name: "チョコチップ",
+                color: 0x5D4037,
+                skill: "Sugar Rush",
+                skillDesc: "中盤で爆発的な加速",
+                icon: "🍩",
+                // スキル発動条件: 進行率40-60%で低確率(2%)で発動
                 check: (p, r) => p > 0.4 && p < 0.6 && r < 0.02,
+                // スキル効果: 速度を1.4～1.8倍に加速
                 activate: (h) => h.speed *= (1.4 + Math.random() * 0.4)
             },
             {
-                name: "ブラックジャック", color: 0x212121, skill: "Shadow Step", skillDesc: "スタミナ減らずに加速", icon: "🌑",
+                name: "ブラックジャック",
+                color: 0x212121,
+                skill: "Shadow Step",
+                skillDesc: "スタミナ減らずに加速",
+                icon: "🌑",
+                // スキル発動条件: 進行率50%以上で極低確率(1%)で発動
                 check: (p, r) => p > 0.5 && r < 0.01,
+                // スキル効果: 速度を1.3～1.6倍に加速
                 activate: (h) => h.speed *= (1.3 + Math.random() * 0.3)
             },
             {
-                name: "ゴールデンボーイ", color: 0xFFD700, skill: "Gold Aura", skillDesc: "全体的な速度底上げ", icon: "✨",
+                name: "ゴールデンボーイ",
+                color: 0xFFD700,
+                skill: "Gold Aura",
+                skillDesc: "全体的な速度底上げ",
+                icon: "✨",
+                // スキル発動条件: 進行率20%以上で極低確率(1%)で発動
                 check: (p, r) => p > 0.2 && r < 0.01,
+                // スキル効果: 速度を1.2～1.4倍に加速、効果時間6秒
                 activate: (h) => { h.speed *= (1.2 + Math.random() * 0.2); h.skillTimer = 6.0; }
             },
             {
-                name: "シルバーブレット", color: 0xA9A9A9, skill: "Bullet Time", skillDesc: "ゴール直前で一瞬の伸び", icon: "🚅",
+                name: "シルバーブレット",
+                color: 0xA9A9A9,
+                skill: "Bullet Time",
+                skillDesc: "ゴール直前で一瞬の伸び",
+                icon: "🚅",
+                // スキル発動条件: 進行率85%以上で低確率(3%)で発動
                 check: (p, r) => p > 0.85 && r < 0.03,
+                // スキル効果: 速度を2.0～3.0倍に急加速、効果時間1.5秒
                 activate: (h) => { h.speed *= (2.0 + Math.random() * 1.0); h.skillTimer = 1.5; }
             }
         ];
 
-        // --- ゲーム状態管理 (State) ---
-        // 現在の所持金、レース状態、カメラモードなどを保持
+        // ================================================================================
+        // ゲーム状態管理
+        // ================================================================================
+        // レースの進行状況、所持金、カメラ設定などを保持
         const STATE = {
-            wallet: 1000,
-            betAmount: 100,
-            selectedHorse: null,
-            isRacing: false,
-            raceStarted: false,
-            horses: [],
-            gates: [],
-            cameraMode: 0, // 0:Follow, 1:Top, 2:Side, 3:Auto(TV Style)
-            lastAutoSwitch: 0,
-            autoShotType: 0,
-            trackCurve: null,
-            winner: null,
-            weather: null,
-            trackCondition: null,
-            rainParticles: null,
-            isWinningRun: false,
-            cameraShake: 0,
-            timeScale: 1.0,
-            currentCourse: null
+            wallet: 1000,              // 所持金(ゲーム内通貨)
+            betAmount: 100,            // 賭け金額(固定)
+            selectedHorse: null,       // プレイヤーが選択した馬のID
+            isRacing: false,           // レース中かどうか
+            raceStarted: false,        // レースが実際に開始されたか(カウントダウン後)
+            horses: [],                // 馬オブジェクトの配列
+            gates: [],                 // ゲートオブジェクトの配列
+            cameraMode: 0,             // カメラモード (0:追従, 1:上空, 2:サイド, 3:オート)
+            lastAutoSwitch: 0,         // オートカメラの最後の切り替え時刻
+            autoShotType: 0,           // オートカメラの現在のショットタイプ
+            trackCurve: null,          // トラックの曲線オブジェクト(CatmullRomCurve3)
+            winner: null,              // 勝者の馬オブジェクト
+            weather: null,             // 現在の天候オブジェクト
+            trackCondition: null,      // 馬場状態(良、重など)
+            rainParticles: null,       // 雨のパーティクルオブジェクト
+            isWinningRun: false,       // 勝利走行演出中かどうか
+            cameraShake: 0,            // カメラシェイクの強度
+            timeScale: 1.0,            // 時間スケール(スローモーション用)
+            currentCourse: null        // 現在選択されているコース
         };
 
-        // --- 天候システム ---
-        // 天候ごとの環境光、霧、トラック状態への影響を定義
+        // ================================================================================
+        // 天候システム
+        // ================================================================================
+        // 各天候の環境設定、ライティング、馬場状態への影響を定義
         const WEATHER_TYPES = [
             {
-                name: '晴れ',
-                icon: '☀',
-                trackCondition: '良',
-                speedMultiplier: 1.0,
-                skyColor: 0x87CEEB,
-                fogColor: 0x87CEEB,
-                ambientIntensity: 0.6,
-                directionalIntensity: 1.2,
-                directionalColor: 0xffffff
+                name: '晴れ',                      // 天候名
+                icon: '☀',                       // アイコン
+                trackCondition: '良',             // 馬場状態
+                speedMultiplier: 1.0,              // 速度倍率(標準)
+                skyColor: 0x87CEEB,                // 空の色(明るい青)
+                fogColor: 0x87CEEB,                // 霧の色
+                ambientIntensity: 0.6,             // 環境光の強度
+                directionalIntensity: 1.2,         // 直接光の強度
+                directionalColor: 0xffffff         // 直接光の色(白)
             },
             {
                 name: '夕方',
                 icon: '🌆',
                 trackCondition: '良',
                 speedMultiplier: 1.0,
-                skyColor: 0xFF6B35,
-                fogColor: 0xFF8C69,
-                ambientIntensity: 0.5,
-                directionalIntensity: 0.9,
-                directionalColor: 0xFFAA77
+                skyColor: 0xFF6B35,                // 空の色(オレンジ)
+                fogColor: 0xFF8C69,                // 霧の色(淡いオレンジ)
+                ambientIntensity: 0.5,             // 環境光をやや暗く
+                directionalIntensity: 0.9,         // 直接光を弱めに
+                directionalColor: 0xFFAA77         // 直接光の色(暖色)
             },
             {
                 name: '雨',
                 icon: '☔',
-                trackCondition: '重',
-                speedMultiplier: 0.85,
-                skyColor: 0x4A5568,
-                fogColor: 0x718096,
-                ambientIntensity: 0.4,
-                directionalIntensity: 0.7,
-                directionalColor: 0xCCCCCC,
-                rain: true
+                trackCondition: '重',             // 馬場状態が悪い
+                speedMultiplier: 0.85,             // 速度が15%低下
+                skyColor: 0x4A5568,                // 空の色(暗い灰色)
+                fogColor: 0x718096,                // 霧の色(灰色)
+                ambientIntensity: 0.4,             // 環境光を暗く
+                directionalIntensity: 0.7,         // 直接光を弱く
+                directionalColor: 0xCCCCCC,        // 直接光の色(淡い灰色)
+                rain: true                         // 雨パーティクルを表示
             },
             {
                 name: '夜',
                 icon: '🌃',
                 trackCondition: '良',
                 speedMultiplier: 1.0,
-                skyColor: 0x0A1128,
-                fogColor: 0x1A2332,
-                ambientIntensity: 0.3,
-                directionalIntensity: 1.5,
-                directionalColor: 0xFFFFDD,
-                night: true
+                skyColor: 0x0A1128,                // 空の色(深い青黒)
+                fogColor: 0x1A2332,                // 霧の色(暗い青灰色)
+                ambientIntensity: 0.3,             // 環境光を非常に暗く
+                directionalIntensity: 1.5,         // 直接光を強く(照明効果)
+                directionalColor: 0xFFFFDD,        // 直接光の色(淡い黄色)
+                night: true                        // 夜間フラグ
             }
         ];
 

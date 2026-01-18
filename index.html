@@ -1137,16 +1137,69 @@
             const goalNormal = new THREE.Vector3(-goalTangent.z, 0, goalTangent.x).normalize();
             standGroup.position.copy(goalPoint.clone().add(goalNormal.multiplyScalar(-45))); standGroup.lookAt(goalPoint); scene.add(standGroup);
 
-            const treeGeo = new THREE.ConeGeometry(3, 8, 8); const treeMat = new THREE.MeshStandardMaterial({ color: 0x2E7D32 });
-            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.5, 3); const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5D4037 });
-            for (let i = 0; i < 40; i++) {
-                const t = Math.random(); const p = STATE.trackCurve.getPointAt(t);
-                const tan = STATE.trackCurve.getTangentAt(t).normalize(); const nor = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
-                const dist = 30 + Math.random() * 50; const side = Math.random() > 0.3 ? 1 : -1;
+            // Trees - Improved Realism (3-Tier Pine Trees)
+            // Reusing geometries for performance
+            const trunkGeo = new THREE.CylinderGeometry(0.4, 0.6, 2.5, 7);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4A3828, roughness: 0.9 });
+
+            const foliageGeo1 = new THREE.ConeGeometry(3.0, 4.0, 7); // Bottom
+            const foliageGeo2 = new THREE.ConeGeometry(2.3, 3.5, 7); // Middle
+            const foliageGeo3 = new THREE.ConeGeometry(1.6, 3.0, 7); // Top
+            const foliageMat = new THREE.MeshStandardMaterial({
+                color: 0x2E7D32,
+                roughness: 0.8,
+                flatShading: true // Low-poly style look
+            });
+
+            const treeCount = 60; // Increased density slightly
+            for (let i = 0; i < treeCount; i++) {
+                const t = Math.random();
+                const p = STATE.trackCurve.getPointAt(t);
+                const tan = STATE.trackCurve.getTangentAt(t).normalize();
+                const nor = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+
+                const dist = 35 + Math.random() * 60;
+                const side = Math.random() > 0.3 ? 1 : -1;
                 const treePos = p.add(nor.multiplyScalar(dist * side));
+
                 const tree = new THREE.Group();
-                tree.add(new THREE.Mesh(treeGeo, treeMat).translateY(5)); tree.add(new THREE.Mesh(trunkGeo, trunkMat).translateY(1.5));
-                tree.position.copy(treePos); scene.add(tree);
+
+                // Trunk
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = 1.25;
+                trunk.castShadow = true;
+                trunk.receiveShadow = true;
+                tree.add(trunk);
+
+                // Foliage Levels
+                const l1 = new THREE.Mesh(foliageGeo1, foliageMat);
+                l1.position.y = 3.0;
+                l1.castShadow = true;
+                l1.receiveShadow = true;
+                l1.rotation.y = Math.random() * Math.PI; // Random rotation per layer
+                tree.add(l1);
+
+                const l2 = new THREE.Mesh(foliageGeo2, foliageMat);
+                l2.position.y = 5.0;
+                l2.castShadow = true;
+                l2.receiveShadow = true;
+                l2.rotation.y = Math.random() * Math.PI;
+                tree.add(l2);
+
+                const l3 = new THREE.Mesh(foliageGeo3, foliageMat);
+                l3.position.y = 7.0;
+                l3.castShadow = true;
+                l3.receiveShadow = true;
+                l3.rotation.y = Math.random() * Math.PI;
+                tree.add(l3);
+
+                // Random Variation
+                const scale = 0.8 + Math.random() * 0.6;
+                tree.scale.set(scale, scale, scale);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+
+                tree.position.copy(treePos);
+                scene.add(tree);
             }
         }
 

@@ -18,6 +18,60 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap"
         rel="stylesheet" />
+    <style>
+        /* Relic / Upgrade Cards */
+        .relic-card {
+            background: linear-gradient(145deg, rgba(20, 25, 40, 0.95), rgba(10, 15, 25, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .relic-card:hover {
+            transform: translateY(-5px);
+            border-color: #f59e0b;
+            box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.3);
+        }
+
+        .relic-card .icon {
+            font-size: 3rem;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+        }
+
+        .relic-card h4 {
+            font-family: "Orbitron", sans-serif;
+            color: #f59e0b;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .relic-card p {
+            font-family: "Zen Kaku Gothic New", sans-serif;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            margin: 0;
+            text-align: center;
+        }
+
+        .gp-badge {
+            background: linear-gradient(90deg, #f59e0b, #b45309);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: "Orbitron", sans-serif;
+            font-size: 0.75rem;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+    </style>
     <script>
         tailwind.config = {
             theme: {
@@ -577,6 +631,40 @@
         <!-- Speed Lines Overlay -->
         <div id="speed-lines" class="speed-lines"></div>
 
+        <!-- GP Overlay Info -->
+        <div id="gp-info-overlay" class="hidden absolute top-24 left-6 z-20">
+            <div class="glass-panel px-4 py-2 rounded-lg flex flex-col gap-1 items-start">
+                <div class="flex items-center gap-2">
+                    <span class="gp-badge">GP MODE</span>
+                    <span class="text-white font-display text-lg">ROUND <span id="gp-round-display"
+                            class="text-yellow-400">1</span>/5</span>
+                </div>
+                <div id="gp-relics-list" class="flex gap-1 mt-1">
+                    <!-- Icons injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Upgrade / Relic Selection Panel -->
+        <div id="upgrade-panel"
+            class="hidden interactive absolute inset-0 flex items-center justify-center z-40 bg-black/80 backdrop-blur-sm">
+            <div class="glass-panel p-8 rounded-xl shadow-2xl max-w-4xl w-full mx-4 flex flex-col items-center">
+                <h2 class="text-3xl font-display font-bold text-white mb-2">RACE COMPLETED!</h2>
+                <p class="text-gray-300 font-tech mb-8">Choose an upgrade for the next round</p>
+
+                <div id="upgrade-cards" class="grid grid-cols-3 gap-6 w-full mb-8">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <div class="text-center">
+                    <div class="text-sm text-gray-400 mb-2">NEXT RACE FORECAST</div>
+                    <div id="next-race-info" class="text-xl text-white font-bold font-display">
+                        ☀️ Sunny / Track: Normal
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Center: Results -->
         <div id="center-panel" class="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
             <div id="result-modal"
@@ -621,6 +709,12 @@
                         <span>BET AMOUNT</span>
                         <span class="font-display font-bold text-gold-400 text-2xl">100 G</span>
                     </div>
+                    <div class="flex gap-2">
+                        <button onclick="toggleGPMode()" id="gp-toggle-btn"
+                            class="px-4 py-2 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700 transition font-tech text-gray-300">
+                            <span class="opacity-50">🏆 GP MODE: OFF</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-5 gap-4" id="horse-selector">
@@ -628,9 +722,9 @@
                 </div>
 
                 <div class="mt-8 flex justify-center">
-                    <button id="start-btn" onclick="startRace()" disabled
+                    <button id="start-btn" onclick="handleStartButton()" disabled
                         class="btn-neon py-4 px-24 text-2xl font-bold rounded skew-x-[-15deg] shadow-[0_0_30px_rgba(245,158,11,0.3)] opacity-50 cursor-not-allowed transition-all hover:scale-105 active:scale-95">
-                        <span class="block skew-x-[15deg] tracking-[0.2em]">START RACE</span>
+                        <span id="start-btn-text" class="block skew-x-[15deg] tracking-[0.2em]">START RACE</span>
                     </button>
                 </div>
             </div>
@@ -1112,6 +1206,29 @@
                 night: true, // 夜間フラグ
             },
         ];
+
+        // ================================================================================
+        // Grand Prix (Roguelike) Mode Constants
+        // ================================================================================
+        const RELICS = [
+            { id: 'carrot', name: 'Golden Carrot', desc: '基本速度が10%アップ', icon: '🥕', type: 'stat', stat: 'baseSpeed', value: 1.1 },
+            { id: 'shoe', name: 'Lucky Horseshoe', desc: 'スキル発動率が2倍', icon: '🍀', type: 'stat', stat: 'skillChance', value: 2.0 },
+            { id: 'saddle', name: 'Carbon Saddle', desc: '加速力が15%アップ', icon: '🏇', type: 'stat', stat: 'accel', value: 1.15 },
+            { id: 'goggles', name: 'Hydro Goggles', desc: '雨の減速を無効化', icon: '🥽', type: 'passive', effect: 'ignore_rain' },
+            { id: 'drink', name: 'Rocket Fuel', desc: 'スタートダッシュ強化', icon: '🥤', type: 'passive', effect: 'start_boost' },
+            { id: 'fan', name: 'Fan Club', desc: '獲得賞金が30%アップ', icon: '📣', type: 'passive', effect: 'money_up' },
+            { id: 'visor', name: 'Scope Visor', desc: '視野が広がる(カメラ)', icon: '🔭', type: 'passive', effect: 'camera_plus' },
+        ];
+
+        let GP_STATE = {
+            active: false,
+            round: 1,
+            maxRounds: 5,
+            relics: [],
+            totalScore: 0,
+            nextWeather: null,
+            nextCourse: null
+        };
 
         // --- Three.js 初期化 ---
         // シーン、カメラ、レンダラー、ライトのセットアップ
@@ -2693,16 +2810,38 @@
                 this.finished = false;
                 this.finishRank = null;
                 this.speed = 0;
-                // Race variability: reroll stats per race
-                const weatherMultiplier = STATE.weather
-                    ? STATE.weather.speedMultiplier
-                    : 1.0;
-                this.baseSpeed =
-                    (0.045 + Math.random() * 0.012) *
-                    CONFIG.raceSpeedMult *
-                    weatherMultiplier;
-                this.maxSpeed =
-                    this.baseSpeed * (1.4 + Math.random() * 0.3);
+
+                // --- Calculate Stats based on GP/Relics ---
+                const isPlayer = GP_STATE.active && this.id === STATE.selectedHorse;
+
+                let speedMult = 1.0;
+                let skillChanceBox = 0.012; // Base randomness
+
+                // Weather Effect
+                let weatherMult = STATE.weather ? STATE.weather.speedMultiplier : 1.0;
+
+                // Apply Relics (Passive Check)
+                if (isPlayer) {
+                    const hasGoggles = GP_STATE.relics.find(r => r.id === 'goggles');
+                    if (hasGoggles && STATE.weather && STATE.weather.rain) {
+                        weatherMult = 1.0; // Ignore rain penalty
+                    }
+
+                    const hasCarrot = GP_STATE.relics.find(r => r.id === 'carrot');
+                    if (hasCarrot) speedMult *= hasCarrot.value;
+
+                    const hasSaddle = GP_STATE.relics.find(r => r.id === 'saddle');
+                    if (hasSaddle) speedMult *= hasSaddle.value; // Simplistic application
+
+                    const hasShoe = GP_STATE.relics.find(r => r.id === 'shoe');
+                    if (hasShoe) skillChanceBox *= hasShoe.value;
+
+                    const hasDrink = GP_STATE.relics.find(r => r.id === 'drink');
+                    if (hasDrink) this.currentT += 0.02; // Start Boost
+                }
+
+                this.baseSpeed = (0.045 + Math.random() * skillChanceBox) * CONFIG.raceSpeedMult * weatherMult * speedMult;
+                this.maxSpeed = this.baseSpeed * (1.4 + Math.random() * 0.3);
 
                 this.skillTriggered = false;
                 this.skillActive = false;
@@ -3070,8 +3209,12 @@
             btn.classList.remove("cursor-not-allowed", "opacity-50");
             btn.classList.add("cursor-pointer", "opacity-100");
 
-            btn.innerHTML =
-                '<span class="block skew-x-[15deg] tracking-[0.2em]">START RACE!</span>';
+            const txt = document.getElementById("start-btn-text");
+            if (GP_STATE.active) {
+                txt.innerHTML = GP_STATE.round === 1 ? "START GP!" : "NEXT ROUND";
+            } else {
+                txt.innerHTML = "START RACE!";
+            }
         }
 
         function startRace() {
@@ -3085,12 +3228,14 @@
             STATE.isRacing = true;
             STATE.raceStarted = false;
 
-            // Set random weather for this race
-            const randomWeather =
-                WEATHER_TYPES[
-                Math.floor(Math.random() * WEATHER_TYPES.length)
-                ];
-            applyWeather(randomWeather);
+            // Set weather (GP mode pre-determines it, otherwise random)
+            let raceWeather;
+            if (GP_STATE.active && GP_STATE.nextWeather) {
+                raceWeather = GP_STATE.nextWeather;
+            } else {
+                raceWeather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)];
+            }
+            applyWeather(raceWeather);
 
             const bettingPanel = document.getElementById("betting-panel");
             bettingPanel.classList.add("opacity-0", "pointer-events-none");
@@ -3115,7 +3260,7 @@
 
             SoundManager.playFanfare();
             announce(
-                `${randomWeather.icon} ${randomWeather.name}、馬場状態: ${randomWeather.trackCondition}`,
+                `${raceWeather.icon} ${raceWeather.name}、馬場状態: ${raceWeather.trackCondition}`,
             );
 
             const cdOverlay = document.getElementById("countdown-overlay");
@@ -3201,10 +3346,148 @@
                     msg.innerHTML = `Winner: <span class="text-gray-800 font-bold">${winner.name}</span>`;
                     pay.innerText = "0 G";
                 }
+
+                // --- GP MODE HANDLING ---
+                if (GP_STATE.active) {
+                    // Check if player Qualified (Top 3?)
+                    // For now, let's say Top 3 qualifies, otherwise Game Over
+                    const playerRank = STATE.horses[STATE.selectedHorse].finishRank;
+                    if (playerRank <= 3) {
+                        // Success
+                        if (GP_STATE.round >= GP_STATE.maxRounds) {
+                            // VICTORY
+                            msg.innerHTML += "<br><span class='text-gold-500 text-2xl'>🏆 GRAND PRIX CHAMPION! 🏆</span>";
+                            document.querySelector('#result-modal button').innerText = "RETURN TO LOBBY";
+                            document.querySelector('#result-modal button').onclick = () => { toggleGPMode(); resetGame(); };
+                        } else {
+                            // Prepare Upgrade Screen call
+                            document.querySelector('#result-modal button').innerText = "GET REWARDS";
+                            document.querySelector('#result-modal button').onclick = () => {
+                                // Logic to show upgrade
+                                document.getElementById("result-modal").classList.add("hidden");
+                                prepareNextRaceConditions();
+                                showUpgradeScreen();
+                            };
+                        }
+                    } else {
+                        // Game Over
+                        msg.innerHTML += "<br><span class='text-red-500 font-bold'>GP ELIMINATED...</span>";
+                        document.querySelector('#result-modal button').innerText = "TRY AGAIN";
+                        document.querySelector('#result-modal button').onclick = () => { toggleGPMode(); resetGame(); };
+                    }
+                } else {
+                    // Normal Mode
+                    document.querySelector('#result-modal button').innerText = "NEXT RACE";
+                    document.querySelector('#result-modal button').onclick = () => resetGame();
+                }
             }, 3000);
         }
 
-        function resetGame() {
+        // ================================================================================
+        // Grand Prix Logic
+        // ================================================================================
+        function toggleGPMode() {
+            if (STATE.isRacing) return;
+            GP_STATE.active = !GP_STATE.active;
+            const btn = document.getElementById('gp-toggle-btn');
+            if (GP_STATE.active) {
+                btn.innerHTML = '<span class="text-gold-400 font-bold glow">🏆 GP MODE: ON</span>';
+                btn.classList.add('border-gold-500');
+                GP_STATE.round = 1;
+                GP_STATE.relics = [];
+                GP_STATE.totalScore = 0;
+            } else {
+                btn.innerHTML = '<span class="opacity-50">🏆 GP MODE: OFF</span>';
+                btn.classList.remove('border-gold-500');
+            }
+        }
+
+        function handleStartButton() {
+            if (GP_STATE.active && GP_STATE.round === 1) {
+                startGrandPrix();
+            } else {
+                startRace();
+            }
+        }
+
+        function startGrandPrix() {
+            GP_STATE.relics = [];
+            GP_STATE.round = 1;
+            updateGPUI();
+
+            // Forecast for Round 1
+            prepareNextRaceConditions();
+            startRace();
+        }
+
+        function prepareNextRaceConditions() {
+            // Random Course & Weather for NEXT race
+            const cIdx = Math.floor(Math.random() * COURSES.length);
+            GP_STATE.nextCourse = COURSES[cIdx];
+            const wIdx = Math.floor(Math.random() * WEATHER_TYPES.length);
+            GP_STATE.nextWeather = WEATHER_TYPES[wIdx];
+        }
+
+        function updateGPUI() {
+            const overlay = document.getElementById('gp-info-overlay');
+            if (GP_STATE.active) {
+                overlay.classList.remove('hidden');
+                document.getElementById('gp-round-display').innerText = GP_STATE.round;
+                const list = document.getElementById('gp-relics-list');
+                list.innerHTML = GP_STATE.relics.map(r => `<span title="${r.name}: ${r.desc}">${r.icon}</span>`).join('');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function showUpgradeScreen() {
+            const panel = document.getElementById('upgrade-panel');
+            panel.classList.remove('hidden');
+
+            const cardContainer = document.getElementById('upgrade-cards');
+            cardContainer.innerHTML = '';
+
+            // Pick 3 random relics
+            const options = [];
+            for (let i = 0; i < 3; i++) {
+                const r = RELICS[Math.floor(Math.random() * RELICS.length)];
+                options.push(r);
+            }
+
+            // Add "Stamina Refill" or "Money" as fixed options if needed, but for now just relics
+
+            options.forEach((relic, idx) => {
+                const el = document.createElement('div');
+                el.className = 'relic-card';
+                el.onclick = () => selectRelic(relic);
+                el.innerHTML = `
+                    <div class="icon">${relic.icon}</div>
+                    <h4>${relic.name}</h4>
+                    <p>${relic.desc}</p>
+                `;
+                cardContainer.appendChild(el);
+            });
+
+            // Show Forecast
+            const nextInfo = document.getElementById('next-race-info');
+            nextInfo.innerText = `${GP_STATE.nextWeather.icon} ${GP_STATE.nextWeather.name} / 🚦 ${GP_STATE.nextCourse.name}`;
+
+            // Pre-load the track for next round behind scenes? 
+            // Better to do it on "Next Race" click to avoid lag on UI.
+        }
+
+        function selectRelic(relic) {
+            GP_STATE.relics.push(relic);
+            GP_STATE.round++;
+
+            // Hide upgrade panel
+            document.getElementById('upgrade-panel').classList.add('hidden');
+
+            // Reset for next race
+            resetGame(true); // pass true to indicate continuation
+        }
+
+        function resetGame(continueGP = false) {
             STATE.isWinningRun = false;
             STATE.winner = null;
             confettiManager.stop();
@@ -3213,28 +3496,51 @@
                 .classList.add("hidden", "scale-95", "opacity-0");
 
             const bettingPanel = document.getElementById("betting-panel");
-            bettingPanel.classList.remove(
-                "opacity-0",
-                "pointer-events-none",
-            );
-            bettingPanel
-                .querySelector(".glass-panel")
-                .classList.remove("scale-95");
+
+            // If GP Mode and NOT coming from upgrade screen (i.e., finished race)
+            // wait, if we are in GP mode, we don't go back to betting panel immediately?
+            // "continueGP" is true when we clicked a relic.
+
+            if (GP_STATE.active) {
+                // If just finished a race (continueGP is false), show upgrade logic is handled in finishRace actually...
+                // Only if continueGP is true, we proceed to setup next race
+
+                if (continueGP) {
+                    // Go to next round setup
+                    // Since betting is part of the "Lobby", we show it again but maybe auto-select horse? 
+                    // Or keep same horse?
+                    // For now, let's keep same horse but allow bet change? 
+                    // Let's bring back betting panel but update titles.
+
+                    bettingPanel.classList.remove("opacity-0", "pointer-events-none");
+                    bettingPanel.querySelector(".glass-panel").classList.remove("scale-95");
+
+                    // Apply pre-selected course/weather
+                    STATE.currentCourse = GP_STATE.nextCourse;
+                    buildTrack(STATE.currentCourse);
+                    STATE.weather = GP_STATE.nextWeather; // Will be applied in startRace, but we can preview
+                    // Actually startRace does random weather if we don't override.
+
+                    updateGPUI();
+                } else {
+                    // Standard reset (Abort GP?)
+                    // If resetGame is called without continueGP, it means "Quit to Title"
+                    bettingPanel.classList.remove("opacity-0", "pointer-events-none");
+                    bettingPanel.querySelector(".glass-panel").classList.remove("scale-95");
+                    selectRandomCourse();
+                }
+            } else {
+                // Normal Mode Reset
+                bettingPanel.classList.remove("opacity-0", "pointer-events-none");
+                bettingPanel.querySelector(".glass-panel").classList.remove("scale-95");
+                selectRandomCourse();
+            }
 
             document.getElementById("camera-btn").classList.add("hidden");
 
-            // Random Course for next race
-            selectRandomCourse();
-
             STATE.horses.forEach((h) => h.reset());
-            // Gates are reset inside buildTrack (technically recreated)
-            // But if we want to be safe:
-            // STATE.gates.forEach(g => g.reset()); // They are new, so already closed.
-
             updateCamera(0);
-            document
-                .getElementById("commentary-box")
-                .classList.remove("active");
+            document.getElementById("commentary-box").classList.remove("active");
             SoundManager.playAtmosphere(false);
         }
 

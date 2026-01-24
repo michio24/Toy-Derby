@@ -1,0 +1,499 @@
+/* Relic / Upgrade Cards */
+.relic-card {
+    background: linear-gradient(145deg, rgba(20, 25, 40, 0.95), rgba(10, 15, 25, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.relic-card:hover {
+    transform: translateY(-5px);
+    border-color: #f59e0b;
+    box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.3);
+}
+
+.relic-card .icon {
+    font-size: 3rem;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+}
+
+.relic-card h4 {
+    font-family: "Orbitron", sans-serif;
+    color: #f59e0b;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.relic-card p {
+    font-family: "Zen Kaku Gothic New", sans-serif;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    margin: 0;
+    text-align: center;
+}
+
+.gp-badge {
+    background: linear-gradient(90deg, #f59e0b, #b45309);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: "Orbitron", sans-serif;
+    font-size: 0.75rem;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #1a1a2e;
+    font-family: "Zen Kaku Gothic New", sans-serif;
+    color: #e2e8f0;
+}
+
+/* =========================================
+   ユーティリティ & デザインシステム
+   ========================================= */
+
+/* グラスモーフィズム (すりガラス効果) の共通クラス */
+.glass-panel {
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-header {
+    background: linear-gradient(180deg,
+            rgba(0, 0, 0, 0.8) 0%,
+            rgba(0, 0, 0, 0) 100%);
+    padding-bottom: 2rem;
+}
+
+/* 馬選択カードのスタイル */
+.horse-card {
+    background: linear-gradient(145deg,
+            rgba(30, 41, 59, 0.9),
+            rgba(15, 23, 42, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.horse-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg,
+            transparent 40%,
+            rgba(255, 255, 255, 0.05) 45%,
+            transparent 50%);
+    z-index: 1;
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+}
+
+.horse-card:hover::before {
+    transform: translateX(100%);
+}
+
+.horse-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    border-color: rgba(251, 191, 36, 0.5);
+    box-shadow: 0 10px 25px -5px rgba(251, 191, 36, 0.15);
+}
+
+.horse-card.selected {
+    border: 2px solid #f59e0b;
+    background: linear-gradient(145deg,
+            rgba(50, 40, 20, 0.95),
+            rgba(30, 25, 10, 0.95));
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+    transform: scale(1.05);
+    z-index: 10;
+}
+
+.horse-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    font-family: "Orbitron", sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-bottom-left-radius: 8px;
+    box-shadow: -2px 2px 5px rgba(0, 0, 0, 0.3);
+    z-index: 5;
+}
+
+.skill-badge {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    font-family: "Chakra Petch", sans-serif;
+    font-size: 0.65rem;
+    text-align: center;
+    padding: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.horse-card.selected .skill-badge {
+    color: #fcd34d;
+    background: rgba(40, 20, 0, 0.8);
+}
+
+/* ネオン風ボタンのエフェクト */
+.btn-neon {
+    background: linear-gradient(90deg, #f59e0b, #ea580c);
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+    font-family: "Orbitron", sans-serif;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-neon:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+    filter: brightness(1.2);
+}
+
+.btn-neon:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.btn-neon:disabled {
+    background: #334155;
+    color: #94a3b8;
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
+/* =========================================
+   ゲームUIレイアウト
+   Three.jsのキャンバスの上に重ねる要素群
+   ========================================= */
+#game-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+}
+
+.interactive {
+    pointer-events: auto;
+}
+
+#betting-panel {
+    background: transparent;
+}
+
+/* Loader */
+#loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0f172a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    transition: opacity 0.5s;
+}
+
+.loading-bar {
+    width: 240px;
+    height: 6px;
+    background: #1e293b;
+    margin-top: 15px;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.loading-progress {
+    height: 100%;
+    background: linear-gradient(90deg, #f59e0b, #fcd34d);
+    width: 0%;
+    transition: width 0.2s;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+/* Rank Panel */
+#rank-panel ul li {
+    font-family: "Chakra Petch", sans-serif;
+    transition: all 0.2s;
+}
+
+/* Cut-in */
+#cut-in-overlay {
+    position: absolute;
+    top: 25%;
+    left: -100%;
+    width: 100%;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(90deg,
+            rgba(0, 0, 0, 0) 0%,
+            rgba(245, 158, 11, 0.8) 15%,
+            rgba(234, 88, 12, 0.9) 50%,
+            rgba(245, 158, 11, 0.8) 85%,
+            rgba(0, 0, 0, 0) 100%);
+    z-index: 40;
+    transform: skewX(-15deg);
+    transition: left 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: none;
+    opacity: 0;
+    backdrop-filter: blur(4px);
+    border-top: 2px solid rgba(255, 255, 255, 0.4);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+#cut-in-overlay.active {
+    left: -10%;
+    opacity: 1;
+}
+
+.cut-in-content {
+    transform: skewX(15deg);
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    color: white;
+    text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+.cut-in-text {
+    font-family: "Orbitron", sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    font-style: italic;
+    margin-left: 30px;
+    text-transform: uppercase;
+    background: linear-gradient(to bottom, #fff, #fcd34d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.5));
+}
+
+.cut-in-horse-name {
+    font-size: 1.5rem;
+    margin-bottom: -10px;
+    opacity: 0.95;
+    letter-spacing: 0.1em;
+}
+
+/* Commentary Box */
+#commentary-box {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    width: 90%;
+    max-width: 800px;
+    background: linear-gradient(to right,
+            rgba(0, 0, 0, 0),
+            rgba(0, 0, 0, 0.8) 20%,
+            rgba(0, 0, 0, 0.8) 80%,
+            rgba(0, 0, 0, 0));
+    padding: 1rem 3rem;
+    border-radius: 0;
+    text-align: center;
+    color: #4ade80;
+    /* Neon Green */
+    font-family: "Zen Kaku Gothic New", sans-serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    opacity: 0;
+    transition: all 0.3s;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    pointer-events: none;
+    border-top: 1px solid rgba(74, 222, 128, 0.3);
+    border-bottom: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+#commentary-box.active {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Countdown */
+.scale-in {
+    animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    60% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.speed-lines {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg,
+            transparent 0,
+            transparent 20px,
+            rgba(255, 255, 255, 0.2) 21px,
+            transparent 22px);
+    animation: speedLines 0.1s linear infinite;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.speed-lines.active {
+    opacity: 0.3;
+}
+
+@keyframes speedLines {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-20px);
+    }
+}
+
+/* Countdown */
+#countdown-text {
+    text-shadow:
+        4px 4px 0px #000,
+        0 0 20px rgba(255, 255, 0, 0.5);
+    transition: opacity 0.5s;
+}
+
+.scale-in {
+    animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes scaleIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    80% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Rank Panel */
+#rank-panel {
+    transition: opacity 0.3s;
+}
+
+.rank-row {
+    transition: top 0.3s ease-out;
+}
+
+/* Commentary Box */
+#commentary-box {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 600px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 10px 20px;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.1rem;
+    text-shadow: 1px 1px 2px black;
+    opacity: 0;
+    transition: opacity 0.5s;
+    z-index: 30;
+    pointer-events: none;
+}
+
+#commentary-box.active {
+    opacity: 1;
+}
+
+.commentary-label {
+    display: inline-block;
+    background: #d32f2f;
+    color: white;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+#sound-toggle {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 8px;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 60;
+}

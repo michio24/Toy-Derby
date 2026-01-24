@@ -20,6 +20,15 @@
         rel="stylesheet" />
     <link rel="stylesheet" href="css/style.css">
     <script>
+        window.onerror = function (msg, url, line, col, error) {
+            const l = document.getElementById("loader");
+            if (l) {
+                l.innerHTML += `<br><div style="color:red;font-weight:bold;text-align:left;font-size:12px;margin-top:10px;">ERROR: ${msg}<br>at ${line}:${col}</div>`;
+                const bar = document.getElementById("progress-bar");
+                if (bar) bar.style.backgroundColor = "red";
+            }
+        };
+
         tailwind.config = {
             theme: {
                 extend: {

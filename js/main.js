@@ -691,7 +691,7 @@ function initGame() {
         const h = new Horse(index, data, scene, particleManager);
         STATE.horses.push(h);
         // 3. Create Gates (since buildTrack skipped them as horses array was empty)
-        const gate = new Gate((index - 2) * CONFIG.laneWidth);
+        const gate = new Gate((index - 2) * CONFIG.laneWidth, scene);
         STATE.gates.push(gate);
     });
 

@@ -20,14 +20,22 @@ export function showCutIn(horseName, skillName, icon) {
     }, 2000);
 }
 
+export function toggleMute() {
+    SoundManager.isMuted = !SoundManager.isMuted;
+    if (!SoundManager.isMuted) {
+        SoundManager.init(); // Ensure context is resumed
+        SoundManager.playClick();
+    }
+    const btn = document.getElementById("sound-toggle");
+    if (btn) {
+        btn.innerText = SoundManager.isMuted ? "🔇" : "🔊";
+        btn.style.opacity = SoundManager.isMuted ? "0.5" : "1";
+    }
+}
+
 // --- 実況システム ---
 // レース展開に応じたテキスト表示と読み上げ
 let lastCommentTime = 0;
-// let lastLeader = null; // Unused in original code snippet logic provided? logic used leader but didn't store lastLeader for comparison except maybe implicitly?
-// Re-checking original code: lastLeader was defined line 3043 but not seemingly used in the snippet I saw (lines 3057+).
-// I will keep it if it was there but I don't see it used in `updateCommentary`.
-// Actually I didn't see the full body of updateCommentary.
-// Let's assume basic logic based on what I saw.
 
 const box = document.getElementById("commentary-box");
 const txt = document.getElementById("commentary-text");

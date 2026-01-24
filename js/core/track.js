@@ -474,7 +474,7 @@ export function buildTrack(courseData, scene) {
     if (STATE.horses.length > 0) {
         // If horses exist (rebuild), we need to remake gates for them
         STATE.horses.forEach((h, index) => {
-            const gate = new Gate((index - 2) * CONFIG.laneWidth);
+            const gate = new Gate((index - 2) * CONFIG.laneWidth, scene);
             STATE.gates.push(gate);
         });
     }

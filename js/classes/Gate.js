@@ -12,7 +12,8 @@ const GATE_GEO = {
 };
 
 export class Gate {
-    constructor(laneOffset) {
+    constructor(laneOffset, scene) {
+        this.scene = scene;
         this.mesh = new THREE.Group();
         const t = CONFIG.startLineT;
         const point = STATE.trackCurve.getPointAt(t);
@@ -65,8 +66,8 @@ export class Gate {
         this.rightDoor = createDoor(false);
         this.mesh.add(this.leftDoor, this.rightDoor);
         this.isOpen = false;
-        // Note: scene is global
-        scene.add(this.mesh);
+        // Note: scene is passed in
+        this.scene.add(this.mesh);
     }
     open() {
         this.isOpen = true;
@@ -85,7 +86,7 @@ export class Gate {
     }
     dispose() {
         if (this.mesh) {
-            scene.remove(this.mesh);
+            this.scene.remove(this.mesh);
             // traverse and dispose geometry/material if needed
             this.mesh = null;
         }

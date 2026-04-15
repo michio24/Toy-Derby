@@ -351,6 +351,78 @@ export class Horse {
 
         this.mesh.add(body, neck, headGroup, tail);
 
+        // --- Jockey ---
+        const jockeyColors = [0xcc2200, 0x0033cc, 0x008800, 0xff7700, 0x880099];
+        const jockeyHelmetColors = [0xffee00, 0xffffff, 0xff9900, 0x00ccff, 0xff66cc];
+        const jColorIdx = this.id % jockeyColors.length;
+
+        const jockeyGroup = new THREE.Group();
+        jockeyGroup.position.set(0, 0.62, 0.1);
+
+        // 上半身シルク（馬番の色）
+        const jSilkMat = new THREE.MeshStandardMaterial({
+            color: jockeyColors[jColorIdx],
+            roughness: 0.55,
+        });
+        const jTorso = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.22, 0.46, 8),
+            jSilkMat,
+        );
+        jTorso.rotation.x = 0.45;
+        jTorso.castShadow = true;
+        jockeyGroup.add(jTorso);
+
+        // 頭（肌色）
+        const jSkinMat = new THREE.MeshStandardMaterial({
+            color: 0xffe4c4,
+            roughness: 0.7,
+        });
+        const jHead = new THREE.Mesh(
+            new THREE.SphereGeometry(0.16, 8, 8),
+            jSkinMat,
+        );
+        jHead.position.set(0, 0.42, -0.22);
+        jHead.castShadow = true;
+        jockeyGroup.add(jHead);
+
+        // ヘルメット
+        const jHelmetMat = new THREE.MeshStandardMaterial({
+            color: jockeyHelmetColors[jColorIdx],
+            roughness: 0.22,
+            metalness: 0.45,
+        });
+        const jHelmet = new THREE.Mesh(
+            new THREE.SphereGeometry(0.185, 8, 8),
+            jHelmetMat,
+        );
+        jHelmet.scale.y = 0.82;
+        jHelmet.position.set(0, jHead.position.y + 0.08, jHead.position.z);
+        jHelmet.castShadow = true;
+        jockeyGroup.add(jHelmet);
+
+        // ヘルメットつば
+        const jBrim = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.21, 0.21, 0.03, 8),
+            jHelmetMat,
+        );
+        jBrim.position.set(0, jHead.position.y + 0.02, jHead.position.z + 0.05);
+        jBrim.rotation.x = -0.3;
+        jockeyGroup.add(jBrim);
+
+        // 腕（手綱を持つ）
+        const jArmGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.38, 6);
+        const jArmL = new THREE.Mesh(jArmGeo, jSilkMat);
+        jArmL.rotation.set(0.4, 0, 0.55);
+        jArmL.position.set(0.21, 0.14, -0.06);
+        jockeyGroup.add(jArmL);
+        const jArmR = jArmL.clone();
+        jArmR.position.set(-0.21, 0.14, -0.06);
+        jArmR.rotation.set(0.4, 0, -0.55);
+        jockeyGroup.add(jArmR);
+
+        body.add(jockeyGroup);
+        this.jockeyGroup = jockeyGroup;
+
         // --- Luxurious Aura Effect (Common) ---
         this.aura = new THREE.Group();
         this.aura.visible = false;
@@ -479,8 +551,7 @@ export class Horse {
         // 1. Camera Shake
         STATE.cameraShake = 0.5; // Intensity
 
-        // 2. Speed Lines (Only if player horse or close to player)
-        // For dramatic effect, show if player horse or if currently viewing this horse
+        // 2. Speed Lines + Flash (プレイヤー馬のみ)
         const isPlayer = this.id === STATE.selectedHorse;
         if (isPlayer) {
             const sl = document.getElementById("speed-lines");
@@ -488,6 +559,12 @@ export class Horse {
                 sl.classList.add("active");
                 setTimeout(() => sl.classList.remove("active"), 1500);
             }
+            // 白フラッシュエフェクト
+            const flash = document.createElement('div');
+            flash.style.cssText = 'position:fixed;inset:0;background:white;opacity:0.75;pointer-events:none;z-index:100;transition:opacity 0.55s ease-out;';
+            document.body.appendChild(flash);
+            requestAnimationFrame(() => { flash.style.opacity = '0'; });
+            setTimeout(() => flash.remove(), 600);
         }
 
         // 3. Initial Particle Burst

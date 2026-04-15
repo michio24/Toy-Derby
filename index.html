@@ -139,6 +139,25 @@
         <!-- Speed Lines Overlay -->
         <div id="speed-lines" class="speed-lines"></div>
 
+        <!-- Race Progress HUD (Bottom Bar) -->
+        <div id="race-progress-hud" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <div class="glass-panel px-5 py-2 rounded-full flex items-center gap-3">
+                <span class="text-[10px] text-white/50 font-tech uppercase tracking-widest">Start</span>
+                <div class="relative" style="width: 460px; height: 22px;">
+                    <div class="absolute top-1/2 -translate-y-1/2 w-full h-px bg-white/20 rounded-full"></div>
+                    <!-- ゴールマーカー -->
+                    <div class="absolute right-0 top-0 bottom-0 flex items-center gap-0.5">
+                        <div class="h-4 w-px bg-yellow-400/80"></div>
+                        <div class="h-4 w-px bg-black/50"></div>
+                        <div class="h-4 w-px bg-yellow-400/80"></div>
+                    </div>
+                    <!-- 馬マーカー (JSで動的生成) -->
+                    <div id="progress-horses"></div>
+                </div>
+                <span class="text-[10px] text-yellow-400 font-tech uppercase tracking-widest">Goal</span>
+            </div>
+        </div>
+
         <!-- GP Overlay Info -->
         <div id="gp-info-overlay" class="hidden absolute top-24 left-6 z-20">
             <div class="glass-panel px-4 py-2 rounded-lg flex flex-col gap-1 items-start">

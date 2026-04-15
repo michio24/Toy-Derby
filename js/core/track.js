@@ -349,38 +349,95 @@ export function buildTrack(courseData, scene) {
         ),
     );
 
+    // --- 縁石 (赤白交互カーブマーカー) ---
+    const curbGeo = new THREE.BoxGeometry(0.55, 0.18, 0.75);
+    const redCurbMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.6 });
+    const whiteCurbMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.6 });
+
+    points.forEach((p, i) => {
+        if (i % 6 !== 0) return;
+        const t = i / 200;
+        const tangent = STATE.trackCurve.getTangentAt(t).normalize();
+        const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        const mat = (Math.floor(i / 6) % 2 === 0) ? redCurbMat : whiteCurbMat;
+        const angle = Math.atan2(tangent.x, tangent.z);
+
+        // 内側縁石
+        const innerPos = p.clone().add(normal.clone().multiplyScalar((trackWidth / 2) * 1.01));
+        const innerCurb = new THREE.Mesh(curbGeo, mat);
+        innerCurb.position.set(innerPos.x, 0.59, innerPos.z);
+        innerCurb.rotation.y = angle;
+        innerCurb.castShadow = true;
+        trackGroup.add(innerCurb);
+
+        // 外側縁石
+        const outerPos = p.clone().add(normal.clone().multiplyScalar((-trackWidth / 2) * 1.01));
+        const outerCurb = new THREE.Mesh(curbGeo, mat);
+        outerCurb.position.set(outerPos.x, 0.59, outerPos.z);
+        outerCurb.rotation.y = angle;
+        outerCurb.castShadow = true;
+        trackGroup.add(outerCurb);
+    });
+
     const goalT = CONFIG.finishLineT;
     const goalPoint = STATE.trackCurve.getPointAt(goalT);
     const prevPoint = STATE.trackCurve.getPointAt(0.99);
     const goalGroup = new THREE.Group();
     goalGroup.position.copy(goalPoint);
     goalGroup.lookAt(prevPoint);
-    const postGeo = new THREE.CylinderGeometry(0.3, 0.3, 8);
-    const postMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-    });
+
+    // ゴールポスト (赤白縞)
+    const postGeo = new THREE.CylinderGeometry(0.3, 0.3, 9, 12);
+    const postCanvas = document.createElement('canvas');
+    postCanvas.width = 64; postCanvas.height = 256;
+    const pCtx = postCanvas.getContext('2d');
+    const stripeH = 32;
+    for (let s = 0; s < 256 / stripeH; s++) {
+        pCtx.fillStyle = s % 2 === 0 ? '#cc1111' : '#ffffff';
+        pCtx.fillRect(0, s * stripeH, 64, stripeH);
+    }
+    const postTex = new THREE.CanvasTexture(postCanvas);
+    postTex.wrapT = THREE.RepeatWrapping;
+    const postMat = new THREE.MeshStandardMaterial({ map: postTex, roughness: 0.5 });
+
     const gp1 = new THREE.Mesh(postGeo, postMat);
-    gp1.position.set(-trackWidth / 2 - 1, 4, 0);
+    gp1.position.set(-trackWidth / 2 - 1, 4.5, 0);
     const gp2 = new THREE.Mesh(postGeo, postMat);
-    gp2.position.set(trackWidth / 2 + 1, 4, 0);
+    gp2.position.set(trackWidth / 2 + 1, 4.5, 0);
+
+    // ゴールバナー (市松模様 + GOALテキスト)
+    const bannerCanvas = document.createElement('canvas');
+    bannerCanvas.width = 512; bannerCanvas.height = 128;
+    const bCtx = bannerCanvas.getContext('2d');
+    // 市松模様背景
+    const checkSize = 16;
+    for (let cy = 0; cy < 128; cy += checkSize) {
+        for (let cx = 0; cx < 512; cx += checkSize) {
+            bCtx.fillStyle = (Math.floor(cx / checkSize) + Math.floor(cy / checkSize)) % 2 === 0
+                ? '#111111' : '#ffffff';
+            bCtx.fillRect(cx, cy, checkSize, checkSize);
+        }
+    }
+    // GOALテキスト
+    bCtx.shadowBlur = 20;
+    bCtx.shadowColor = '#ff4444';
+    bCtx.fillStyle = '#ff2222';
+    bCtx.font = 'bold 88px Arial Black';
+    bCtx.textAlign = 'center';
+    bCtx.textBaseline = 'middle';
+    bCtx.fillText('GOAL', 256, 64);
+    bCtx.shadowBlur = 0;
+
     const banner = new THREE.Mesh(
-        new THREE.BoxGeometry(trackWidth + 4, 2, 0.5),
-        new THREE.MeshStandardMaterial({ color: 0xb71c1c }),
+        new THREE.BoxGeometry(trackWidth + 4, 2.4, 0.4),
+        new THREE.MeshStandardMaterial({
+            map: new THREE.CanvasTexture(bannerCanvas),
+            emissive: 0x220000,
+            emissiveIntensity: 0.4,
+        }),
     );
-    banner.position.set(0, 7, 0);
-    const tCtx = document.createElement("canvas").getContext("2d");
-    tCtx.canvas.width = 256;
-    tCtx.canvas.height = 64;
-    tCtx.fillStyle = "#B71C1C";
-    tCtx.fillRect(0, 0, 256, 64);
-    tCtx.fillStyle = "white";
-    tCtx.font = "bold 40px Arial";
-    tCtx.textAlign = "center";
-    tCtx.textBaseline = "middle";
-    tCtx.fillText("GOAL", 128, 32);
-    banner.material = new THREE.MeshStandardMaterial({
-        map: new THREE.CanvasTexture(tCtx.canvas),
-    });
+    banner.position.set(0, 8.5, 0);
+
     goalGroup.add(gp1, gp2, banner);
     trackGroup.add(goalGroup);
 

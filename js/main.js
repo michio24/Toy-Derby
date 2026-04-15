@@ -15,6 +15,39 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 40, 350);
 
+// --- Gradient Sky Dome ---
+const skyUniforms = {
+    topColor: { value: new THREE.Color(0x0077dd) },
+    bottomColor: { value: new THREE.Color(0xc5e0f5) },
+};
+const skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(480, 32, 15),
+    new THREE.ShaderMaterial({
+        uniforms: skyUniforms,
+        vertexShader: [
+            'varying vec3 vWorldPosition;',
+            'void main() {',
+            '  vec4 worldPos = modelMatrix * vec4(position, 1.0);',
+            '  vWorldPosition = worldPos.xyz;',
+            '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+            '}',
+        ].join('\n'),
+        fragmentShader: [
+            'uniform vec3 topColor;',
+            'uniform vec3 bottomColor;',
+            'varying vec3 vWorldPosition;',
+            'void main() {',
+            '  float h = normalize(vWorldPosition).y;',
+            '  float blend = pow(clamp(h, 0.0, 1.0), 0.45);',
+            '  gl_FragColor = vec4(mix(bottomColor, topColor, blend), 1.0);',
+            '}',
+        ].join('\n'),
+        side: THREE.BackSide,
+        depthWrite: false,
+    })
+);
+scene.add(skyDome);
+
 const camera = new THREE.PerspectiveCamera(
     50,
     window.innerWidth / window.innerHeight,
@@ -32,14 +65,12 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 document.body.appendChild(renderer.domElement);
 
 // --- Lighting ---
-const hemiLight = new THREE.HemisphereLight(
-    0xffffff,
-    0xffffff,
-    0.6,
-);
+// 半球光 (空の青 / 地面の緑)
+const hemiLight = new THREE.HemisphereLight(0xc9e8ff, 0x567a45, 0.65);
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+// 主光源 (暖色系ゴールデンアワー)
+const dirLight = new THREE.DirectionalLight(0xfff2cc, 1.4);
 dirLight.position.set(100, 200, 50);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
@@ -50,6 +81,11 @@ dirLight.shadow.camera.right = d;
 dirLight.shadow.camera.top = d;
 dirLight.shadow.camera.bottom = -d;
 scene.add(dirLight);
+
+// フィルライト (反対側からの涼しい青光)
+const fillLight = new THREE.DirectionalLight(0x99bbff, 0.28);
+fillLight.position.set(-100, 80, -50);
+scene.add(fillLight);
 
 // --- Managers ---
 const particleManager = new ParticleManager(scene);
@@ -87,6 +123,11 @@ function applyWeather(weather) {
     // Set sky and fog
     scene.background.setHex(weather.skyColor);
     scene.fog.color.setHex(weather.fogColor);
+
+    // Update sky dome gradient
+    const topCol = new THREE.Color(weather.skyColor);
+    skyUniforms.topColor.value.copy(topCol);
+    skyUniforms.bottomColor.value.copy(topCol).lerp(new THREE.Color(0xffffff), 0.55);
 
     // Update lighting
     hemiLight.intensity = weather.ambientIntensity;
@@ -345,8 +386,7 @@ function updateRankingUI() {
     list.innerHTML = "";
     sorted.forEach((h, i) => {
         const li = document.createElement("li");
-        li.className =
-            "flex items-center justify-between p-1 rounded bg-white/10";
+        li.className = "flex items-center gap-1.5 p-1 rounded bg-white/10";
         const isPlayer = h.id === STATE.selectedHorse;
         if (isPlayer)
             li.classList.add("border", "border-yellow-500/50");
@@ -356,8 +396,52 @@ function updateRankingUI() {
             : i === 0
                 ? "text-yellow-400"
                 : "text-gray-400";
-        li.innerHTML = `<div class="flex items-center gap-2"><span class="w-4 text-center font-bold ${rankClass}">${rankDisplay}</span><div class="w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style="background:#${h.mat.color.getHexString()}">${h.icon}</div><span class="text-xs truncate w-24 ${isPlayer ? "text-yellow-200" : "text-gray-300"}">${h.name}</span></div>${h.finished ? '<span class="text-[10px] text-green-400">✓</span>' : ""}`;
+        const colorHex = h.mat.color.getHexString();
+        const progress = Math.min(100, h.currentT * 100).toFixed(1);
+        li.innerHTML = `
+            <span class="w-4 text-center font-bold text-xs flex-shrink-0 ${rankClass}">${rankDisplay}</span>
+            <div class="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[8px] border border-white/20" style="background:#${colorHex}">${h.icon}</div>
+            <div class="flex flex-col flex-1 min-w-0 gap-0.5">
+                <span class="text-[10px] truncate leading-none ${isPlayer ? "text-yellow-200 font-bold" : "text-gray-300"}">${h.name}</span>
+                <div class="h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full" style="width:${progress}%;background:#${colorHex};"></div>
+                </div>
+            </div>
+            ${h.finished ? '<span class="text-[10px] text-green-400 flex-shrink-0">✓</span>' : ''}
+        `;
         list.appendChild(li);
+    });
+}
+
+function updateRaceProgress() {
+    const container = document.getElementById('progress-horses');
+    if (!container || !STATE.horses.length) return;
+
+    container.innerHTML = '';
+    STATE.horses.forEach((h) => {
+        const progress = Math.min(1, Math.max(0, h.currentT));
+        const isPlayer = h.id === STATE.selectedHorse;
+        const el = document.createElement('div');
+        const colorHex = h.mat.color.getHexString();
+        el.style.cssText = [
+            `position:absolute`,
+            `left:calc(${progress * 100}% - ${isPlayer ? 9 : 7}px)`,
+            `top:50%`,
+            `transform:translateY(-50%)`,
+            `width:${isPlayer ? 18 : 14}px`,
+            `height:${isPlayer ? 18 : 14}px`,
+            `border-radius:50%`,
+            `background:#${colorHex}`,
+            `border:${isPlayer ? '2px solid #fcd34d' : '1.5px solid rgba(255,255,255,0.6)'}`,
+            `box-shadow:${isPlayer ? '0 0 7px #fcd34d' : '0 1px 3px rgba(0,0,0,0.5)'}`,
+            `font-size:8px`,
+            `display:flex`,
+            `align-items:center`,
+            `justify-content:center`,
+            `z-index:${isPlayer ? 2 : 1}`,
+        ].join(';');
+        el.textContent = h.icon;
+        container.appendChild(el);
     });
 }
 
@@ -462,6 +546,7 @@ function startRace() {
 
     document.getElementById("camera-btn").classList.remove("hidden");
     document.getElementById("rank-panel").classList.remove("hidden");
+    document.getElementById("race-progress-hud").classList.remove("hidden");
 
     STATE.horses.forEach((h) => {
         h.reset();
@@ -575,6 +660,7 @@ function finishRace(winner) {
     STATE.isWinningRun = true;
     const win = winner.id === STATE.selectedHorse;
     document.getElementById("rank-panel").classList.add("hidden");
+    document.getElementById("race-progress-hud").classList.add("hidden");
 
     // Winning Run Setup
     confettiManager.start(winner.mesh.position);
@@ -672,6 +758,7 @@ function resetGame(continueGP = false) {
     }
 
     document.getElementById("camera-btn").classList.add("hidden");
+    document.getElementById("race-progress-hud").classList.add("hidden");
 
     STATE.horses.forEach((h) => h.reset());
     updateCamera(0);
@@ -799,10 +886,11 @@ function animate() {
                 }
             });
             if (!STATE.winner) updateCommentary(now);
-            if (now - lastRankUpdate > 0.5) {
+            if (now - lastRankUpdate > 0.2) {
                 updateRankingUI();
                 lastRankUpdate = now;
             }
+            updateRaceProgress();
             if (
                 STATE.winner &&
                 STATE.isRacing &&
